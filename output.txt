@@ -1,0 +1,39 @@
+Root
+  CompilationUnit
+  Instance
+    InstanceBody Name: FullAdder
+      Port
+        Port: a Direction: In
+      Variable
+        Name: a
+        Type: logic
+      Port
+        Port: b Direction: In
+      Variable
+        Name: b
+        Type: logic
+      Port
+        Port: sum Direction: Out
+      Variable
+        Name: sum
+        Type: logic
+      ContinuousAssign
+        Assignment
+          NamedValue
+            Type: logic
+            Symbol: 5759484363712 sum
+            Constant: None
+          BinaryOp
+            Binary Operation:
+              Operator: BinaryXor
+              Left Operand:
+              NamedValue
+                Type: logic
+                Symbol: 5759484362768 a
+                Constant: None
+              Right Operand:
+              NamedValue
+                Type: logic
+                Symbol: 5759484363240 b
+                Constant: None
+  Connections:
