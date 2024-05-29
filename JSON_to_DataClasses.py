@@ -357,15 +357,3 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
     return lines
 
 ##################################################################################################################################################################
-
-# Main Program
-file_path = 'build/output.json'
-json_data = read_json_file(file_path)
-json_data = json_data[:-2]
-ast = json_to_ast(json_data)
-
-# Write to file
-output_path = 'output.txt'
-with open(output_path, 'w') as file:
-    formatted_ast = format_ast(ast)
-    file.write("\n".join(formatted_ast))

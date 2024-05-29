@@ -21,7 +21,7 @@ Root
         Assignment
           NamedValue
             Type: logic
-            Symbol: 5759484363712 sum
+            Symbol: 4492335307776 sum
             Constant: None
           BinaryOp
             Binary Operation:
@@ -29,11 +29,11 @@ Root
               Left Operand:
               NamedValue
                 Type: logic
-                Symbol: 5759484362768 a
+                Symbol: 4492335306832 a
                 Constant: None
               Right Operand:
               NamedValue
                 Type: logic
-                Symbol: 5759484363240 b
+                Symbol: 4492335307304 b
                 Constant: None
   Connections:

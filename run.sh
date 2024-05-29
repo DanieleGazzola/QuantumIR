@@ -8,7 +8,7 @@ echo
 
 cd build
 
-./test ../input.sv
+./test ../input_simple.sv
 
 echo 
 
@@ -18,4 +18,4 @@ echo
 
 cd ..
 
-python3 JSON_to_Dataclasses.py
+python3 test.py

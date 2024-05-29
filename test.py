@@ -2,6 +2,8 @@ import json
 from xdsl.ir import Dialect, Operation
 from xdsl.dialects.builtin import StringAttr
 
+import JSON_to_DataClasses
+
 class VerilogDialect(Dialect):
     _name = "verilog"
 
@@ -42,38 +44,38 @@ class ContinuousAssignOp(Operation):
 
 # Conversion functions
 def convert_port(port):
-    return PortOp(StringAttr(port["name"]), StringAttr(port["type"]), StringAttr(port["direction"]))
+    return PortOp(StringAttr(port.name), StringAttr(port.type), StringAttr(port.direction))
 
 def convert_variable(variable):
-    return VariableOp(StringAttr(variable["name"]), StringAttr(variable["type"]))
+    return VariableOp(StringAttr(variable.name), StringAttr(variable.type))
 
 def convert_continuous_assign(assign):
-    lhs = assign["assignment"]["left"]["symbol"]
-    rhs_left = assign["assignment"]["right"]["left"]["symbol"]
-    rhs_right = assign["assignment"]["right"]["right"]["symbol"]
-    rhs_op = assign["assignment"]["right"]["op"]
+    lhs = assign.assignment.left.symbol
+    rhs_left = assign.assignment.right.left.symbol
+    rhs_right = assign.assignment.right.right.symbol
+    rhs_op = assign.assignment.right.op
     rhs = f"{rhs_left} {rhs_op} {rhs_right}"
     return ContinuousAssignOp(StringAttr(lhs), StringAttr(rhs))
 
 def convert_instance_body(body):
     ops = []
-    for member in body["members"]:
-        if member["kind"] == "Port":
+    for member in body.members:
+        if member.kind == "Port":
             ops.append(convert_port(member))
-        elif member["kind"] == "Variable":
+        elif member.kind == "Variable":
             ops.append(convert_variable(member))
-        elif member["kind"] == "ContinuousAssign":
+        elif member.kind == "ContinuousAssign":
             ops.append(convert_continuous_assign(member))
     return ops
 
 def convert_instance(instance):
-    body_ops = convert_instance_body(instance["body"])
+    body_ops = convert_instance_body(instance.body)
     return body_ops
 
 def convert_root(root):
     ops = []
-    for member in root["members"]:
-        if member["kind"] == "Instance":
+    for member in root.members:
+        if member.kind == "Instance":
             ops.extend(convert_instance(member))
     return ops
 
@@ -81,14 +83,21 @@ def read_json_file(file_path: str) -> str:
     with open(file_path, 'r') as file:
         return file.read()
 
-# Parse JSON
-file_path = 'build/output.json'
-json_data = read_json_file(file_path)
-json_data = json_data[:-2]
-verilog_ast = json.loads(json_data)
 
-# Convert JSON to MLIR
-mlir_representation = convert_root(verilog_ast)
+# Main Program
+file_path = 'build/output.json'
+json_data = JSON_to_DataClasses.read_json_file(file_path)
+json_data = json_data[:-2]
+ast = JSON_to_DataClasses.json_to_ast(json_data)
+
+# Write DataClasses
+output_path = 'output.txt'
+with open(output_path, 'w') as file:
+    formatted_ast = JSON_to_DataClasses.format_ast(ast)
+    file.write("\n".join(formatted_ast))
+
+# Convert Data to MLIR
+mlir_representation = convert_root(ast)
 
 # Print or use the MLIR representation
 for op in mlir_representation:
