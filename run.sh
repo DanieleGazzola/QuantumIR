@@ -8,7 +8,7 @@ echo
 
 cd build
 
-./test ../test-inputs/input_simple.sv
+./test ../test-inputs/full_adder.sv
 
 echo 
 
