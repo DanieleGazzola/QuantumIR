@@ -7,12 +7,35 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 
 using namespace slang;
 using namespace slang::driver;
 using namespace slang::ast;
 
 int main(int argc, char** argv) {
+
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <filename>" << std::endl;
+        return 1;
+    }
+
+    // Convert the filename from argv[1] to a std::string
+    std::string fullPath = argv[1];
+
+    // Find the position of the last slash
+    size_t lastSlashPos = fullPath.find_last_of("/\\");
+    std::string filename;
+    
+    if (lastSlashPos != std::string::npos) {
+        // Extract the filename following the last slash
+        filename = fullPath.substr(lastSlashPos + 1);
+    } else {
+        // If no slash is found, the entire string is the filename
+        filename = fullPath;
+    }
+
+    std::cout << "Chosen Verilog input file: " << filename << "\n" <<std::endl;
 
     std::ofstream file;
     file.open("output.json");
