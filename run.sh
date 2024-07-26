@@ -8,7 +8,7 @@ echo
 
 cd build
 
-./test ../test-inputs/full_adder.sv
+./verilog_to_json ../test-inputs/full_adder.sv
 
 echo 
 
@@ -18,4 +18,4 @@ echo
 
 cd ..
 
-python3 test.py
+python3 main.py

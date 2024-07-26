@@ -17,5 +17,5 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_executable(test main.cpp)
-target_link_libraries(test PUBLIC slang::slang)
+add_executable(verilog_to_json main.cpp)
+target_link_libraries(verilog_to_json PUBLIC slang::slang)
