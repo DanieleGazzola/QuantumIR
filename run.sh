@@ -8,7 +8,7 @@ echo
 
 cd build
 
-./verilog_to_json ../test-inputs/full_adder_extended.sv
+./verilog_to_json ../test-inputs/xor.sv
 
 echo 
 
