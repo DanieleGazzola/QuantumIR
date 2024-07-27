@@ -1,3 +1,4 @@
+import os
 import json
 from xdsl.ir import Dialect, Operation
 from xdsl.dialects.builtin import StringAttr
@@ -11,7 +12,9 @@ json_data = json_data[:-2]
 ast = JSON_to_DataClasses.json_to_ast(json_data)
 
 # Write DataClasses
+output_dir = 'test-outputs'
 output_path = 'test-outputs/output.txt'
+os.makedirs(output_dir, exist_ok=True)
 with open(output_path, 'w') as file:
     formatted_ast = JSON_to_DataClasses.format_ast(ast)
     file.write("\n".join(formatted_ast))

@@ -1,0 +1,6 @@
+[console_scripts]
+irdl-to-pyrdl = xdsl.tools.irdl_to_pyrdl:main
+xdsl-gui = xdsl.interactive.app:main
+xdsl-opt = xdsl.tools.xdsl_opt:main
+xdsl-run = xdsl.tools.xdsl_run:main
+xdsl-stubgen = xdsl.utils.dialect_stub:make_all_stubs

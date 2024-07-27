@@ -331,7 +331,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
         lines.extend(format_ast(ast.left, indent + 2))
         lines.extend(format_ast(ast.right, indent + 2))
     elif isinstance(ast, BinaryOp):
-        lines.append(indent_str + "  Binary Operation:")
         lines.append(indent_str + "    Operator: " + ast.op)
         lines.append(indent_str + "    Left Operand:")
         lines.extend(format_ast(ast.left, indent + 4))
