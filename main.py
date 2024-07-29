@@ -19,7 +19,7 @@ with open(output_path, 'w') as file:
     file.write("\n".join(formatted_ast))
 
 mlir_gen = IRGen()
-module_op = mlir_gen.ir_gen_module(formatted_ast)
+module_op = mlir_gen.ir_gen_module(ast)
 Printer().print_op(module_op)
 
 

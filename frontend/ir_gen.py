@@ -10,7 +10,7 @@ from xdsl.ir import Block, Region, SSAValue
 
 from dialects.quantum import *
 
-from location import Location
+from frontend.location import Location
 
 from JSON_to_DataClasses import (
     ASTNode,
@@ -172,15 +172,15 @@ class IRGen:
 
         # Implicitly return void if no return statement was emitted.
         return_op = None
-        if block.ops:
-            last_op = block.last_op
-            if isinstance(last_op, ReturnOp):
-                return_op = last_op
-                if return_op.input is not None:
-                    return_arg = return_op.input
-                    return_types = [return_arg.type]
-        if return_op is None:
-            self.builder.insert(ReturnOp())
+        # if block.ops:
+        #     last_op = block.last_op
+        #     if isinstance(last_op, ReturnOp):
+        #         return_op = last_op
+        #         if return_op.input is not None:
+        #             return_arg = return_op.input
+        #             return_types = [return_arg.type]
+        # if return_op is None:
+        #     self.builder.insert(ReturnOp())
 
         input_types = [self.get_type([]) for _ in range(len(proto_args))]
 
@@ -349,13 +349,14 @@ class IRGen:
     #     constant_op = self.builder.insert(ConstantOp.from_list([num.val], []))
     #     return constant_op.res
 
-    def ir_gen_expr(self, expr: Assignment) -> SSAValue:
+    def ir_gen_expr(self, expr: ASTNode) -> SSAValue:
         "Dispatch codegen for the right expression subclass using RTTI."
 
-        if isinstance(expr.right, BinaryOp):
-            self.ir_gen_binary_expr(expr.right)
-        # if isinstance(expr, VariableExprAST):
-        #     return self.ir_gen_variable_expr(expr)
+        if isinstance(expr, Assignment):
+            if isinstance(expr.right, BinaryOp):
+                self.ir_gen_binary_expr(expr.right, expr.left)
+        if isinstance(expr, NamedValue):
+            return self.ir_gen_variable_expr(expr)
         # if isinstance(expr, LiteralExprAST):
         #     return self.ir_gen_literal_expr(expr)
         # if isinstance(expr, CallExprAST):
@@ -365,30 +366,30 @@ class IRGen:
         else:
             self.error(f"MLIR codegen encountered an unhandled expr kind '{expr.kind}'")
 
-    # def ir_gen_var_decl_expr(self, vardecl: VarDeclExprAST) -> SSAValue:
-    #     """
-    #     Handle a variable declaration, we'll codegen the expression that forms the
-    #     initializer and record the value in the symbol table before returning it.
-    #     Future expressions will be able to reference this variable through symbol
-    #     table lookup.
-    #     """
+    def ir_gen_var_decl_expr(self, vardecl: NamedValue) -> SSAValue:
+        """
+        Handle a variable declaration, we'll codegen the expression that forms the
+        initializer and record the value in the symbol table before returning it.
+        Future expressions will be able to reference this variable through symbol
+        table lookup.
+        """
 
-    #     value = self.ir_gen_expr(vardecl.expr)
+        value = self.ir_gen_expr(vardecl.expr)
 
-    #     # We have the initializer value, but in case the variable was declared
-    #     # with specific shape, we emit a "reshape" operation. It will get
-    #     # optimized out later as needed.
-    #     if len(vardecl.varType.shape):
-    #         reshape_op = self.builder.insert(ReshapeOp(value, vardecl.varType.shape))
+        # We have the initializer value, but in case the variable was declared
+        # with specific shape, we emit a "reshape" operation. It will get
+        # optimized out later as needed.
+        if len(vardecl.varType.shape):
+            reshape_op = self.builder.insert(ReshapeOp(value, vardecl.varType.shape))
 
-    #         value = reshape_op.res
+            value = reshape_op.res
 
-    #     # Register the value in the symbol table.
-    #     self.declare(vardecl.name, value)
+        # Register the value in the symbol table.
+        self.declare(vardecl.name, value)
 
-    #     return value
+        return value
 
-    def ir_gen_expr_list(self, exprs: Iterable[Assignment]) -> None:
+    def ir_gen_expr_list(self, exprs: Iterable[ASTNode]) -> None:
         "Codegen a list of expressions, raise error if one of them hit an error."
         assert self.symbol_table is not None
 
@@ -396,8 +397,8 @@ class IRGen:
             # Specific handling for variable declarations, return statement, and
             # print. These can only appear in block list and not in nested
             # expressions.
-            # if isinstance(expr, VarDeclExprAST):
-            #     self.ir_gen_var_decl_expr(expr)
+            if isinstance(expr, NamedValue):
+                self.ir_gen_var_decl_expr(expr)
             # elif isinstance(expr, ReturnExprAST):
             #     self.ir_gen_return_expr(expr)
             # elif isinstance(expr, PrintExprAST):

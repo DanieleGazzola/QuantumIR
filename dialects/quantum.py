@@ -29,7 +29,7 @@ from xdsl.irdl import (
     attr_def,
     # base,
     irdl_op_definition,
-    # operand_def,
+    operand_def,
     opt_attr_def,
     # opt_operand_def,
     region_def
@@ -584,14 +584,15 @@ class CNotOp(IRDLOperation):
 
     name = "q.cnot"
 
-    _operands = [Operand(IntegerType(1)), Operand(IntegerType(1))]
-    _results = [OpResult(IntegerType(1))]
+    _operands = [operand_def(IntegerType(1)), operand_def(IntegerType(1))]
 
     def __init__(self, control: SSAValue, target: SSAValue):
         super().__init__(
             operands=[control, target],
-            results=[target]
+            results=[]
         )
+
+        self.results = [OpResult(IntegerType(1), op=self, index=0)]
 
 # class CCNotOp(IRDLOperation):
 
