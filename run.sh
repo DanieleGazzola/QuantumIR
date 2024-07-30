@@ -19,3 +19,5 @@ echo
 cd ..
 
 python3 main.py
+
+python3 operations.py

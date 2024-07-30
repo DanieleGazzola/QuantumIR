@@ -12,5 +12,5 @@ module FullAdder(input logic a, b, cin,
     assign temp3 = temp1 & cin;
 
     assign cout = temp2 | temp3;
-    
+
 endmodule
