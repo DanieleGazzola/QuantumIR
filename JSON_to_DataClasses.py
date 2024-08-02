@@ -13,7 +13,7 @@ class Assignment:
     kind: str
     type: str
     left: Union['NamedValue', 'ElementSelect']
-    right: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
+    right: Union['NamedValue', 'EmptyArgument', 'BinaryOp', 'Conversion']
     isNonBlocking: bool
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -53,7 +53,7 @@ class ContinuousAssign:
 class Conversion:
     kind: str
     type: str
-    operand: 'IntegerLiteral'
+    operand: Union['IntegerLiteral', 'Conversion']
     constant: str
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -283,8 +283,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
                 lines.append(f"{indent_str}{prefix} Type: {obj.type}")
             if hasattr(obj, 'symbol'):
                 lines.append(f"{indent_str}{prefix} Symbol: {obj.symbol}")
-            if hasattr(obj, 'constant'):
-                lines.append(f"{indent_str}{prefix} Constant: {obj.constant}")
             if hasattr(obj, 'value'):
                 if hasattr(obj, 'selector'):
                     lines.append(f"{indent_str}{prefix} Value: {obj.value.symbol}")
@@ -299,6 +297,8 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
                         lines.extend(format_ast(obj.selector, indent + 4))
                 else:
                     lines.append(f"{indent_str}{prefix} Value: {obj.value}")
+            elif hasattr(obj, 'constant') and obj.constant:
+                lines.append(f"{indent_str}{prefix} Constant: {obj.constant}")
 
     if isinstance(ast, InstanceBody):
         lines.append(f"{indent_str}{ast.kind} Name: {ast.name if hasattr(ast, 'name') else 'Unknown'}")

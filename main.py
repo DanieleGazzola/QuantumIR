@@ -4,6 +4,8 @@ from xdsl.ir import Dialect, Operation
 from xdsl.dialects.builtin import StringAttr
 
 import JSON_to_DataClasses
+from xdsl.printer import Printer
+from frontend.ir_gen import IRGen
 
 # Main Program
 file_path = 'build/output.json'
@@ -18,6 +20,10 @@ os.makedirs(output_dir, exist_ok=True)
 with open(output_path, 'w') as file:
     formatted_ast = JSON_to_DataClasses.format_ast(ast)
     file.write("\n".join(formatted_ast))
+
+mlir_gen = IRGen()
+module_op = mlir_gen.ir_gen_module(ast)
+Printer().print_op(module_op)
 
 
 # ------------------------------------------------------

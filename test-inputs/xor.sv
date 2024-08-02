@@ -1,6 +1,13 @@
-module Xor(input logic a, b,
-           output logic xor);
+module Xor(
+    //output logic out
+);
 
-    assign xor = a ^ b;
+    logic a;
+    logic b;
+
+    assign a = 0;
+    assign b = 1;
+
+    //assign out = a ^ b;
     
 endmodule
