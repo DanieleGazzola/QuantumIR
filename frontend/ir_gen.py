@@ -10,6 +10,7 @@ from xdsl.ir import Block, Region, SSAValue
 
 from dialect.dialect import (
     InitOp,
+    CNotOp,
     AddOp,
     ConstantOp,
     FuncOp,
@@ -96,12 +97,6 @@ class IRGen:
 
         return self.module
 
-    def loc(self, loc: Location):
-        "Helper conversion for a Toy AST location to an MLIR location."
-        # TODO: Need location support in xDSL
-        # return mlir::FileLineColLoc::get(builder.getStringAttr(*loc.file), loc.line, loc.col);
-        pass
-
     def declare(self, var: str, value: SSAValue) -> bool:
         """
         Declare a variable in the current scope, return success if the variable
@@ -111,27 +106,6 @@ class IRGen:
             return False
         self.symbol_table[var] = value
         return True
-
-    def get_type(self, shape: list[int]) -> TensorTypeF64 | UnrankedTensorTypeF64:
-        "Build a tensor type from a list of shape dimensions."
-        # If the shape is empty, then this type is unranked.
-        if len(shape):
-            return TensorType(f64, shape)
-        else:
-            return UnrankedTensorTypeF64(f64)
-
-    def ir_gen_proto(self, proto_ast: PrototypeAST) -> FuncOp:
-        """
-        Create the prototype for a function with as many arguments as the
-        provided Toy AST prototype."""
-        # location = self.loc(proto_ast.loc)
-
-        # This is a generic function, the return type will be inferred later.
-        # Arguments type are uniformly unranked tensors.
-        func_type = FunctionType.from_lists(
-            [self.get_type([])] * len(proto_ast.args), [self.get_type([])]
-        )
-        return self.builder.insert(FuncOp(proto_ast.name, func_type, Region()))
 
     def ir_gen_function(self, body: InstanceBody) -> FuncOp:
 
@@ -189,6 +163,87 @@ class IRGen:
         )
 
         return func
+
+
+    
+
+
+
+    # assign var = value;
+    def ir_gen_init(self, expr: Assignment) -> SSAValue:
+
+        symbol = expr.left.symbol
+        value = expr.right.operand.operand.value
+         
+        init_op = self.builder.insert(InitOp.from_value(IntegerType(int(value))))
+
+        self.declare(symbol, init_op.res)
+
+        return init_op.res
+    
+    # assign var1 = var2;
+    # it works as a CNot if var2 is surely 0
+    def ir_gen_copy(self, expr: Assignment) -> SSAValue:
+
+        symbol = expr.left.symbol
+        value = self.symbol_table[expr.right.symbol]
+         
+        copy_op = self.builder.insert(CNotOp.from_value(value))
+
+        self.declare(symbol, copy_op.res)
+
+        return copy_op.res
+
+
+    def ir_gen_expr(self, expr: ContinuousAssign) -> SSAValue:
+        
+        assigment = expr.assignment
+
+        if isinstance(assigment.right, Conversion):
+            return self.ir_gen_init(assigment)
+        if isinstance(assigment.right, NamedValue):
+            return self.ir_gen_copy(assigment)
+        else:
+            self.error(f"MLIR codegen encountered an unhandled expr kind '{expr.kind}'")
+
+
+    def error(self, message: str, cause: Exception | None = None) -> NoReturn:
+        raise IRGenError(message) from cause
+
+############################################################################################################
+
+                            #   UNUSED FUNCTIONS   #
+    
+    
+    def loc(self, loc: Location):
+        "Helper conversion for a Toy AST location to an MLIR location."
+        # TODO: Need location support in xDSL
+        # return mlir::FileLineColLoc::get(builder.getStringAttr(*loc.file), loc.line, loc.col);
+        pass
+    
+    
+    def get_type(self, shape: list[int]) -> TensorTypeF64 | UnrankedTensorTypeF64:
+        "Build a tensor type from a list of shape dimensions."
+        # If the shape is empty, then this type is unranked.
+        if len(shape):
+            return TensorType(f64, shape)
+        else:
+            return UnrankedTensorTypeF64(f64)
+        
+
+    def ir_gen_proto(self, proto_ast: PrototypeAST) -> FuncOp:
+        """
+        Create the prototype for a function with as many arguments as the
+        provided Toy AST prototype."""
+        # location = self.loc(proto_ast.loc)
+
+        # This is a generic function, the return type will be inferred later.
+        # Arguments type are uniformly unranked tensors.
+        func_type = FunctionType.from_lists(
+            [self.get_type([])] * len(proto_ast.args), [self.get_type([])]
+        )
+        return self.builder.insert(FuncOp(proto_ast.name, func_type, Region()))
+    
 
     def ir_gen_binary_expr(self, binop: BinaryExprAST) -> SSAValue:
         "Emit a binary operation"
@@ -341,45 +396,6 @@ class IRGen:
         constant_op = self.builder.insert(ConstantOp.from_list([num.val], []))
         return constant_op.res
 
-    def ir_gen_init(self, expr: Assignment) -> SSAValue:
-
-        symbol = expr.left.symbol
-        value = expr.right.operand.operand.value
-         
-        init_op = self.builder.insert(InitOp.from_value(IntegerType(int(value))))
-
-        self.declare(symbol, value)
-
-        return value
-
-
-    def ir_gen_expr(self, expr: ContinuousAssign) -> SSAValue:
-        
-        assigment = expr.assignment
-
-        if isinstance(assigment.right, Conversion): # initialization of a variable
-            return self.ir_gen_init(assigment)
-        if isinstance(assigment.right, BinaryOp): # binary operation
-            return self.ir_gen_binary(assigment)
-        else:
-            self.error(f"MLIR codegen encountered an unhandled expr kind '{expr.kind}'")
-
-
-        #TO BE DELETED
-
-        if isinstance(expr, BinaryExprAST):
-            return self.ir_gen_binary_expr(expr)
-        if isinstance(expr, VariableExprAST):
-            return self.ir_gen_variable_expr(expr)
-        if isinstance(expr, LiteralExprAST):
-            return self.ir_gen_literal_expr(expr)
-        if isinstance(expr, CallExprAST):
-            return self.ir_gen_call_expr(expr)
-        if isinstance(expr, NumberExprAST):
-            return self.ir_gen_number_expr(expr)
-        else:
-            self.error(f"MLIR codegen encountered an unhandled expr kind '{expr.kind}'")
-
     def ir_gen_var_decl_expr(self, vardecl: VarDeclExprAST) -> SSAValue:
         """
         Handle a variable declaration, we'll codegen the expression that forms the
@@ -420,6 +436,3 @@ class IRGen:
             else:
                 # Generic expression dispatch codegen.
                 self.ir_gen_expr(expr)
-
-    def error(self, message: str, cause: Exception | None = None) -> NoReturn:
-        raise IRGenError(message) from cause

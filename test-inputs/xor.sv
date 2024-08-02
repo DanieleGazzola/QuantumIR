@@ -6,7 +6,7 @@ module Xor(
     logic b;
 
     assign a = 0;
-    assign b = 1;
+    assign b = a;
 
     //assign out = a ^ b;
     

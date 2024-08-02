@@ -556,6 +556,21 @@ class InitOp(IRDLOperation):
 
     def get_data(self) -> IntegerType:
         return self.value
+    
+    
+@irdl_op_definition
+class CNotOp(IRDLOperation):
+
+    name = "quantum.cnot"
+    rhs: Operand = operand_def(IntegerType)
+    res: OpResult = result_def(IntegerType)
+
+    def __init__(self, rhs: SSAValue):
+        super().__init__(result_types=[IntegerType], operands=[rhs])
+
+    @staticmethod
+    def from_value(value: SSAValue) -> CNotOp:
+        return CNotOp(value)
 
 
 
@@ -574,6 +589,7 @@ Toy = Dialect(
         CastOp,
 
         InitOp,
+        CNotOp,
     ],
     [],
 )
