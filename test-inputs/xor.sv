@@ -1,12 +1,13 @@
 module Xor(
+    input logic a, b//,
     //output logic out
 );
 
-    logic a;
-    logic b;
+    logic c;
+    logic d;
 
-    assign a = 0;
-    assign b = a;
+    assign c = 0;
+    assign d = a;
 
     //assign out = a ^ b;
     
