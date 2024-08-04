@@ -17,8 +17,6 @@ from dialect.dialect import (
     FuncOp,
 )
 
-#from .location import Location
-
 from JSON_to_DataClasses import (
     ASTNode,
     Assignment,
@@ -76,69 +74,53 @@ class IRGen:
 
     symbol_table: ScopedSymbolTable | None = None
 
+    n: int = 0
+
     def __init__(self):
 
         self.module = ModuleOp([])
         self.builder = Builder.at_end(self.module.body.blocks[0])
-
-    def ir_gen_module(self, ast: Root) -> ModuleOp:
-
-        for f in ast.members:
-            if (isinstance(f, Instance)):
-                self.ir_gen_function(f.body) # passing InstanceBody as it is a function
-
-        return self.module
-
+    
     def declare(self, var: str, value: SSAValue) -> bool:
-        """
-        Declare a variable in the current scope, return success if the variable
-        wasn't declared yet."""
+        
         assert self.symbol_table is not None
         if var in self.symbol_table:
             return False
         self.symbol_table[var] = value
         return True
 
+    # act on the whole tree
+    def ir_gen_module(self, ast: Root) -> ModuleOp:
+
+        for f in ast.members:
+            if (isinstance(f, Instance)):
+                self.ir_gen_function(f.body)
+
+        return self.module
+
+    # act on each function call
     def ir_gen_function(self, body: InstanceBody) -> FuncOp:
 
         parent_builder = self.builder
 
         self.symbol_table = ScopedSymbolTable()
 
-        # saves the arguments in input to the function
         proto_args = [member for member in body.members if isinstance(member, Port) and member.direction == "In"]
 
-        # creates a block for the function
         block = Block(arg_types=[IntegerType for _ in range(len(proto_args))])
         self.builder = Builder.at_end(block)
 
-        # Declare all the function arguments in the symbol table.
         for name, value in zip(proto_args, block.args):
             self.declare(name.internalSymbol, value)
 
-        # Emit the body of the function.
         for member in body.members:
             if isinstance(member, ContinuousAssign):
                 self.ir_gen_expr(member)
 
+        proto_return = [member for member in body.members if isinstance(member, Port) and member.direction == "Out"]
 
-
-
-        # TODO here we add the measuremnt operations on outputs
-        
-        #return_types = []
-
-        # Implicitly return void if no return statement was emitted.
-        #return_op = None
-        #if block.ops:
-        #    last_op = block.last_op
-        #    if isinstance(last_op, ReturnOp):
-        #        return_op = last_op
-        #        if return_op.input is not None:
-        #            return_arg = return_op.input
-        #            return_types = [return_arg.type]
-        #if return_op is None:
-        #    self.builder.insert(ReturnOp())
+        for var in proto_return:
+            self.builder.insert(MeasureOp.from_value(self.symbol_table[var.internalSymbol]))
 
         self.symbol_table = None
         self.builder = parent_builder
@@ -147,11 +129,23 @@ class IRGen:
 
         return func
 
+    # act as a switch for the different types of expressions
+    def ir_gen_expr(self, expr: ASTNode) -> SSAValue:
 
+        if isinstance(expr, ContinuousAssign):
+            return self.ir_gen_assign(expr)
+
+    # act as a switch for the different types of assignements
+    def ir_gen_assign(self, expr: ContinuousAssign) -> SSAValue:
+        
+        assigment = expr.assignment
+
+        if isinstance(assigment.right, Conversion): # initialization of a variable
+            return self.ir_gen_init(assigment)
+        if isinstance(assigment.right, BinaryOp): # binary operation
+            return self.ir_gen_bin_op(assigment)
     
-
-
-
+    # initialization of a variable
     # assign var = value;
     def ir_gen_init(self, expr: Assignment) -> SSAValue:
 
@@ -164,30 +158,46 @@ class IRGen:
 
         return init_op.res
     
-    # assign var1 = var2;
-    # it works as a CNot if var2 is surely 0
-    def ir_gen_copy(self, expr: Assignment) -> SSAValue:
+    # binary operation
+    # assign res = value1 ^|& value2;
+    def ir_gen_bin_op(self, expr: Assignment) -> SSAValue:
 
         symbol = expr.left.symbol
-        value = self.symbol_table[expr.right.symbol]
-         
-        copy_op = self.builder.insert(CNotOp.from_value(value))
-
-        self.declare(symbol, copy_op.res)
-
-        return copy_op.res
-
-    # act as a switch for the different types of expressions
-    def ir_gen_expr(self, expr: ContinuousAssign) -> SSAValue:
         
-        assigment = expr.assignment
+        if expr.right.op == "BinaryXor":
 
-        if isinstance(assigment.right, Conversion):
-            return self.ir_gen_init(assigment)
-        if isinstance(assigment.right, NamedValue):
-            return self.ir_gen_copy(assigment)
-        else:
-            self.error(f"MLIR codegen encountered an unhandled expr kind '{expr.kind}'")
+            # initialize a new qubit
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            
+            # auxiliary SSAValue
+            temp_symbol = "temp" + str(self.n)
+            self.n += 1
+
+            self.declare(temp_symbol, init_op.res)
+
+            if isinstance(expr.right.left, NamedValue):
+                left = self.symbol_table[expr.right.left.symbol]
+            #elif isinstance(expr.right.left, BinaryOp):
+            #    left = 
+
+            if isinstance(expr.right.right, NamedValue):
+                right = self.symbol_table[expr.right.right.symbol]
+            #elif isinstance(expr.right.right, BinaryOp):
+            #    right =
+
+            cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[temp_symbol]))
+
+            # auxiliary SSAValue
+            temp_symbol = "temp" + str(self.n)
+            self.n += 1
+
+            self.declare(temp_symbol, cnot_op_1.res)
+
+            cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[temp_symbol]))
+
+            self.declare(symbol, cnot_op_2.res)
+
+        return cnot_op_2.res
 
 
     def error(self, message: str, cause: Exception | None = None) -> NoReturn:

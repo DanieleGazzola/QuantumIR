@@ -22,11 +22,11 @@ class InitOp(IRDLOperation):
 class NotOp(IRDLOperation):
 
     name = "quantum.not"
-    rhs: Operand = operand_def(IntegerType)
+    target: Operand = operand_def(IntegerType)
     res: OpResult = result_def(IntegerType)
 
-    def __init__(self, rhs: SSAValue):
-        super().__init__(result_types=[IntegerType], operands=[rhs])
+    def __init__(self, target: SSAValue):
+        super().__init__(result_types=[IntegerType], operands=[target])
 
     @staticmethod
     def from_value(value: SSAValue) -> NotOp:
@@ -37,15 +37,16 @@ class NotOp(IRDLOperation):
 class CNotOp(IRDLOperation):
 
     name = "quantum.cnot"
-    rhs: Operand = operand_def(IntegerType)
+    control: Operand = operand_def(IntegerType)
+    target: Operand = operand_def(IntegerType)
     res: OpResult = result_def(IntegerType)
 
-    def __init__(self, rhs: SSAValue):
-        super().__init__(result_types=[IntegerType], operands=[rhs])
+    def __init__(self, control: SSAValue, target: SSAValue):
+        super().__init__(result_types=[IntegerType], operands=[control, target])
 
     @staticmethod
-    def from_value(value: SSAValue) -> CNotOp:
-        return CNotOp(value)
+    def from_value(control: SSAValue, target: SSAValue) -> CNotOp:
+        return CNotOp(control, target)
 
 @irdl_op_definition
 class CCNotOp(IRDLOperation):
@@ -74,7 +75,7 @@ class MeasureOp(IRDLOperation):
 
     @staticmethod
     def from_value(value: SSAValue) -> MeasureOp:
-        return MeasureOp(value1)
+        return MeasureOp(value)
 
 @irdl_op_definition
 class FuncOp(IRDLOperation):
