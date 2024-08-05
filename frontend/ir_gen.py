@@ -163,42 +163,158 @@ class IRGen:
     def ir_gen_bin_op(self, expr: Assignment) -> SSAValue:
 
         symbol = expr.left.symbol
+
+        final_op = self.ir_gen_bin(expr.right)
+
+        self.declare(symbol, final_op.res)
+
+        return final_op.res
+
+    def ir_gen_bin(self, expr: BinaryOp) -> IRDLOperation:
+
+        if expr.op == "BinaryXor":
+
+            op = self.ir_gen_xor(expr)
+            return op
+
+        if expr.op == "BinaryAnd":
+
+            op = self.ir_gen_and(expr)
+            return op
         
-        if expr.right.op == "BinaryXor":
+        if expr.op == "BinaryOr":
 
-            # initialize a new qubit
-            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            op = self.ir_gen_or(expr)
+            return op
+
+    def ir_gen_xor(self, expr: BinaryOp) -> IRDLOperation:
+
+        # initialize a new qubit
+        init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
             
-            # auxiliary SSAValue
-            temp_symbol = "temp" + str(self.n)
-            self.n += 1
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
 
-            self.declare(temp_symbol, init_op.res)
+        self.declare(temp_symbol, init_op.res)
 
-            if isinstance(expr.right.left, NamedValue):
-                left = self.symbol_table[expr.right.left.symbol]
-            #elif isinstance(expr.right.left, BinaryOp):
-            #    left = 
+        if isinstance(expr.left, NamedValue):
+            left = self.symbol_table[expr.left.symbol]
+        elif isinstance(expr.left, BinaryOp):
+            left = self.ir_gen_bin(expr.left)
+            left = left.res
 
-            if isinstance(expr.right.right, NamedValue):
-                right = self.symbol_table[expr.right.right.symbol]
-            #elif isinstance(expr.right.right, BinaryOp):
-            #    right =
+        if isinstance(expr.right, NamedValue):
+            right = self.symbol_table[expr.right.symbol]
+        elif isinstance(expr.right, BinaryOp):
+            right = self.ir_gen_bin(expr.right)
+            right = right.res
 
-            cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[temp_symbol]))
+        cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[temp_symbol]))
 
-            # auxiliary SSAValue
-            temp_symbol = "temp" + str(self.n)
-            self.n += 1
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
 
-            self.declare(temp_symbol, cnot_op_1.res)
+        self.declare(temp_symbol, cnot_op_1.res)
 
-            cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[temp_symbol]))
+        cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[temp_symbol]))
 
-            self.declare(symbol, cnot_op_2.res)
+        return cnot_op_2
 
-        return cnot_op_2.res
+    def ir_gen_and(self, expr: BinaryOp) -> IRDLOperation:
 
+        # initialize a new qubit
+        init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, init_op.res)
+
+        if isinstance(expr.left, NamedValue):
+            left = self.symbol_table[expr.left.symbol]
+        elif isinstance(expr.left, BinaryOp):
+            left = self.ir_gen_bin(expr.left)
+            left = left.res
+
+        if isinstance(expr.right, NamedValue):
+            right = self.symbol_table[expr.right.symbol]
+        elif isinstance(expr.right, BinaryOp):
+            right = self.ir_gen_bin(expr.right)
+            right = right.res
+
+        ccnot_op = self.builder.insert(CCNotOp.from_value(left, right, self.symbol_table[temp_symbol]))
+
+        return ccnot_op
+
+    def ir_gen_or(self, expr: BinaryOp) -> IRDLOperation:
+
+        # initialize a new qubit
+        init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            
+        # auxiliary SSAValue
+        temp_symbol_0 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_0, init_op.res)
+
+        if isinstance(expr.left, NamedValue):
+            left = self.symbol_table[expr.left.symbol]
+        elif isinstance(expr.left, BinaryOp):
+            left = self.ir_gen_bin(expr.left)
+            left = left.res
+
+        if isinstance(expr.right, NamedValue):
+            right = self.symbol_table[expr.right.symbol]
+        elif isinstance(expr.right, BinaryOp):
+            right = self.ir_gen_bin(expr.right)
+            right = right.res
+
+        not_op_1 = self.builder.insert(NotOp.from_value(left))
+        # auxiliary SSAValue
+        temp_symbol_2 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_2, not_op_1.res)
+
+        not_op_2 = self.builder.insert(NotOp.from_value(right))
+        # auxiliary SSAValue
+        temp_symbol_3 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_3, not_op_2.res)
+
+        ccnot_op = self.builder.insert(CCNotOp.from_value(self.symbol_table[temp_symbol_2], self.symbol_table[temp_symbol_3], self.symbol_table[temp_symbol_0]))
+        # auxiliary SSAValue
+        temp_symbol_1 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_1, ccnot_op.res)
+
+        not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[temp_symbol_2]))
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, not_op_3.res)
+
+        not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[temp_symbol_3]))
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, not_op_4.res)
+
+        not_op_5 = self.builder.insert(NotOp.from_value(self.symbol_table[temp_symbol_1]))
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, not_op_5.res)
+
+        return not_op_5
 
     def error(self, message: str, cause: Exception | None = None) -> NoReturn:
         raise IRGenError(message) from cause

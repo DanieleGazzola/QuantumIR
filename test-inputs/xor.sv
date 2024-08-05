@@ -1,5 +1,8 @@
-module Xor( input logic a, b, output logic out );
+module FullAdder(input logic a, b, cin,
+                 output logic sum, cout);
 
-    assign out = a ^ b;
+    assign sum = a ^ b ^ cin;
+
+    assign cout = (a & b) | (b & cin) | (a & cin);
     
 endmodule
