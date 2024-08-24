@@ -21,6 +21,7 @@ from JSON_to_DataClasses import (
     ASTNode,
     Assignment,
     BinaryOp,
+    UnaryOp,
     CompilationUnit,
     Connection,
     ContinuousAssign,
@@ -138,12 +139,14 @@ class IRGen:
     # act as a switch for the different types of assignements
     def ir_gen_assign(self, expr: ContinuousAssign) -> SSAValue:
         
-        assigment = expr.assignment
+        assignment = expr.assignment
 
-        if isinstance(assigment.right, Conversion): # initialization of a variable
-            return self.ir_gen_init(assigment)
-        if isinstance(assigment.right, BinaryOp): # binary operation
-            return self.ir_gen_bin_op(assigment)
+        if isinstance(assignment.right, Conversion): # initialization of a variable
+            return self.ir_gen_init(assignment)
+        if isinstance(assignment.right, BinaryOp): # binary operation
+            return self.ir_gen_bin_op(assignment)
+        if isinstance(assignment.right, UnaryOp): # unary operation
+            return self.ir_gen_unary_op(assignment)
     
     # initialization of a variable
     # assign var = value;
@@ -158,6 +161,34 @@ class IRGen:
 
         return init_op.res
     
+    def ir_gen_unary_op(self, expr: Assignment) -> SSAValue:
+            
+        symbol = expr.left.symbol
+
+        final_op = self.ir_gen_unary(expr.right)
+
+        self.declare(symbol, final_op.res)
+
+        return final_op.res
+
+    def ir_gen_unary(self, expr: UnaryOp) -> IRDLOperation:
+
+        if expr.op == "BitwiseNot":
+            op = self.ir_gen_not(expr)
+            return op
+
+    def ir_gen_not(self, expr: UnaryOp) -> IRDLOperation:
+
+        if isinstance(expr.operand, NamedValue):
+            operand = self.symbol_table[expr.operand.symbol]
+        elif isinstance(expr.operand, BinaryOp):
+            operand = self.ir_gen_bin(expr.operand)
+            operand = operand.res
+
+        not_op = self.builder.insert(NotOp.from_value(operand))
+
+        return not_op
+
     # binary operation
     # assign res = value1 ^|& value2;
     def ir_gen_bin_op(self, expr: Assignment) -> SSAValue:
