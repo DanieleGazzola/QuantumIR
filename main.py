@@ -11,12 +11,15 @@ from frontend.ir_gen import IRGen
 file_path = 'build/output.json'
 json_data = JSON_to_DataClasses.read_json_file(file_path)
 json_data = json_data[:-2]
+output_dir = 'test-outputs'
+output_path = 'test-outputs/json_ast.txt'
+os.makedirs(output_dir, exist_ok=True)
+with open(output_path, 'w') as file:
+    file.write(json_data)
 ast = JSON_to_DataClasses.json_to_ast(json_data)
 
 # Write DataClasses
-output_dir = 'test-outputs'
-output_path = 'test-outputs/output.txt'
-os.makedirs(output_dir, exist_ok=True)
+output_path = 'test-outputs/dataclass_ast.txt'
 with open(output_path, 'w') as file:
     formatted_ast = JSON_to_DataClasses.format_ast(ast)
     file.write("\n".join(formatted_ast))

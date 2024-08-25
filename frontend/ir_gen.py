@@ -5,8 +5,11 @@ from dataclasses import dataclass, field
 from typing import NoReturn
 
 from xdsl.builder import Builder
-from xdsl.dialects.builtin import ModuleOp, TensorType, UnrankedTensorType, f64, IntegerType
+from xdsl.dialects.builtin import ModuleOp, IntegerType, VectorType
 from xdsl.ir import Block, Region, SSAValue
+from xdsl.dialects import builtin, arith
+
+import re
 
 from dialect.dialect import (
     InitOp,
@@ -107,8 +110,26 @@ class IRGen:
         self.symbol_table = ScopedSymbolTable()
 
         proto_args = [member for member in body.members if isinstance(member, Port) and member.direction == "In"]
+        
+        arg_types=[]
+        for member in proto_args:
+            # check if it is a vector
+            if "[" in member.type and "]" in member.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", member.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
 
-        block = Block(arg_types=[IntegerType for _ in range(len(proto_args))])
+                    element_type = IntegerType(1) #type of the elements in the vector
+                    arg_types.append(builtin.VectorType(element_type, [size,]))
+            else:
+                # it's a single bit
+                arg_types.append(builtin.i1)
+
+        block = Block(arg_types=arg_types)
         self.builder = Builder.at_end(block)
 
         for name, value in zip(proto_args, block.args):
@@ -220,8 +241,19 @@ class IRGen:
 
     def ir_gen_xor(self, expr: BinaryOp) -> IRDLOperation:
 
-        # initialize a new qubit
-        init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+        # initialize a new qubit or a new qubit register
+        if "[" in expr.type and "]" in expr.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
+                element_type= IntegerType(1)
+                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
+        else:
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
             
         # auxiliary SSAValue
         temp_symbol = "temp" + str(self.n)
@@ -254,10 +286,20 @@ class IRGen:
         return cnot_op_2
 
     def ir_gen_and(self, expr: BinaryOp) -> IRDLOperation:
+        # initialize a new qubit or a new qubit register
+        if "[" in expr.type and "]" in expr.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
+                element_type= IntegerType(1)
+                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
+        else:
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
 
-        # initialize a new qubit
-        init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
-            
         # auxiliary SSAValue
         temp_symbol = "temp" + str(self.n)
         self.n += 1
@@ -276,14 +318,26 @@ class IRGen:
             right = self.ir_gen_bin(expr.right)
             right = right.res
 
+        
         ccnot_op = self.builder.insert(CCNotOp.from_value(left, right, self.symbol_table[temp_symbol]))
 
         return ccnot_op
 
     def ir_gen_or(self, expr: BinaryOp) -> IRDLOperation:
 
-        # initialize a new qubit
-        init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+        # initialize a new qubit or a new qubit register
+        if "[" in expr.type and "]" in expr.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
+                element_type= IntegerType(1)
+                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
+        else:
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
             
         # auxiliary SSAValue
         temp_symbol_0 = "temp" + str(self.n)

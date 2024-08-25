@@ -1,5 +1,6 @@
 from __future__ import annotations
-from xdsl.dialects.builtin import IntegerType, StringAttr
+from xdsl.dialects import builtin
+from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType,AnyAttr,IntAttr
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
 from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def
 
@@ -8,26 +9,55 @@ from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, oper
 class InitOp(IRDLOperation):
 
     name = "quantum.init"
-    value: IntegerType = attr_def(IntegerType)
-    res: OpResult = result_def(IntegerType)
+    value: IntegerType = attr_def(AnyAttr())
+    res: OpResult = result_def()
 
-    def __init__(self, value: IntegerType):
-        super().__init__(result_types=[IntegerType], attributes={"value": value})
-
+    def __init__(self, values):
+        # Determine if values is a single IntegerType or a VectorType of IntegerType
+        result_types=[]
+        attributes=[]
+        if isinstance(values, IntegerType):
+            # Single IntegerType case
+            result_types = [IntegerType(1)]
+            attributes = {"values": values}
+        elif isinstance(values, VectorType):
+            # Vector of IntegerType case
+            element_type=values.get_element_type()
+            size=values.get_shape()[0]
+            result_types= [VectorType(element_type, [size,])]     
+            attributes = {"values": values}
+        else:
+            raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
+        
+        super().__init__(result_types=result_types, attributes=attributes) 
+           
     @staticmethod
-    def from_value(value: IntegerType) -> InitOp:
+    def from_value(value) -> InitOp:
         return InitOp(value)
+    
+    def verify(self):
+    # Ensure the result type matches the attribute type
+        if isinstance(self.values, IntegerType):
+            assert self.result_types[0] == IntegerType
+        elif isinstance(self.values, VectorType):
+            assert self.result_types[0] == VectorType(IntegerType, len(self.values))
+        else:
+            raise ValueError("Invalid attribute type")
 
 @irdl_op_definition
 class NotOp(IRDLOperation):
 
     name = "quantum.not"
-    target: Operand = operand_def(IntegerType)
-    res: OpResult = result_def(IntegerType)
+    target: Operand = operand_def(AnyAttr())
+    res: OpResult = result_def()
 
     def __init__(self, target: SSAValue):
-        super().__init__(result_types=[IntegerType], operands=[target])
-
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else:
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+    
     @staticmethod
     def from_value(value: SSAValue) -> NotOp:
         return NotOp(value)
@@ -37,12 +67,16 @@ class NotOp(IRDLOperation):
 class CNotOp(IRDLOperation):
 
     name = "quantum.cnot"
-    control: Operand = operand_def(IntegerType)
-    target: Operand = operand_def(IntegerType)
-    res: OpResult = result_def(IntegerType)
+    control: Operand = operand_def(AnyAttr())
+    target: Operand = operand_def(AnyAttr())
+    res: OpResult = result_def()
 
     def __init__(self, control: SSAValue, target: SSAValue):
-        super().__init__(result_types=[IntegerType], operands=[control, target])
+        if isinstance(control.type, IntegerType) and isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[control, target])
+        else:
+            size = control.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control, target])
 
     @staticmethod
     def from_value(control: SSAValue, target: SSAValue) -> CNotOp:
@@ -52,13 +86,17 @@ class CNotOp(IRDLOperation):
 class CCNotOp(IRDLOperation):
 
     name = "quantum.ccnot"
-    control1: Operand = operand_def(IntegerType)
-    control2: Operand = operand_def(IntegerType)
-    target: Operand = operand_def(IntegerType)
-    res: OpResult = result_def(IntegerType)
+    control1: Operand = operand_def(AnyAttr())
+    control2: Operand = operand_def(AnyAttr())
+    target: Operand = operand_def(AnyAttr())
+    res: OpResult = result_def()
 
     def __init__(self, control1: SSAValue, control2: SSAValue, target: SSAValue):
-        super().__init__(result_types=[IntegerType], operands=[control1, control2, target])
+        if isinstance(control1.type, IntegerType) and isinstance(control2.type, IntegerType) and isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[control1, control2, target])
+        else:
+            size = control1.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control1, control2, target])
 
     @staticmethod
     def from_value(control1: SSAValue, control2: SSAValue, target: SSAValue) -> CCNotOp:
@@ -68,11 +106,15 @@ class CCNotOp(IRDLOperation):
 class MeasureOp(IRDLOperation):
 
     name = "quantum.measure"
-    value: Operand = operand_def(IntegerType)
-    res: OpResult = result_def(IntegerType)
+    value: Operand = operand_def(IntegerType(1))
+    res: OpResult = result_def()
 
     def __init__(self, value: SSAValue):
-        super().__init__(result_types=[IntegerType], operands=[value])
+        if isinstance(value.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[value])
+        else:
+            size=value.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[value])
 
     @staticmethod
     def from_value(value: SSAValue) -> MeasureOp:
