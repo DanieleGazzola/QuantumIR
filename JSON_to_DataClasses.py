@@ -13,7 +13,7 @@ class Assignment:
     kind: str
     type: str
     left: Union['NamedValue', 'ElementSelect']
-    right: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
+    right: Union['NamedValue', 'EmptyArgument', 'BinaryOp', 'Conversion']
     isNonBlocking: bool
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -25,6 +25,15 @@ class BinaryOp:
     op: str
     left: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
     right: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+@dataclass
+class UnaryOp:
+    kind: str
+    type: str
+    op: str
+    operand: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -53,7 +62,7 @@ class ContinuousAssign:
 class Conversion:
     kind: str
     type: str
-    operand: 'IntegerLiteral'
+    operand: Union['IntegerLiteral', 'Conversion']
     constant: str
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -209,6 +218,8 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
             return Assignment(type=data['type'], left=from_dict(data['left']), right=from_dict(data['right']), isNonBlocking=data['isNonBlocking'], **common_fields)
         elif kind == 'BinaryOp':
             return BinaryOp(type=data['type'], op=data['op'], left=from_dict(data['left']), right=from_dict(data['right']), **common_fields)
+        elif kind == 'UnaryOp':
+            return UnaryOp(type=data['type'], op=data['op'], operand=from_dict(data['operand']), **common_fields)
         elif kind == 'CompilationUnit':
             return CompilationUnit(**common_fields)
         elif kind == 'Connection':
@@ -283,8 +294,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
                 lines.append(f"{indent_str}{prefix} Type: {obj.type}")
             if hasattr(obj, 'symbol'):
                 lines.append(f"{indent_str}{prefix} Symbol: {obj.symbol}")
-            if hasattr(obj, 'constant'):
-                lines.append(f"{indent_str}{prefix} Constant: {obj.constant}")
             if hasattr(obj, 'value'):
                 if hasattr(obj, 'selector'):
                     lines.append(f"{indent_str}{prefix} Value: {obj.value.symbol}")
@@ -294,11 +303,16 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
                     elif isinstance(obj.selector, BinaryOp):
                         lines.append(f"{indent_str}{prefix} Selector:")
                         lines.extend(format_ast(obj.selector, indent + 4))
+                    elif isinstance(obj.selector, UnaryOp):
+                        lines.append(f"{indent_str}{prefix} Selector:")
+                        lines.extend(format_ast(obj.selector, indent + 4))
                     elif isinstance(obj.selector, IntegerLiteral):
                         lines.append(f"{indent_str}{prefix} Selector:")
                         lines.extend(format_ast(obj.selector, indent + 4))
                 else:
                     lines.append(f"{indent_str}{prefix} Value: {obj.value}")
+            elif hasattr(obj, 'constant') and obj.constant:
+                lines.append(f"{indent_str}{prefix} Constant: {obj.constant}")
 
     if isinstance(ast, InstanceBody):
         lines.append(f"{indent_str}{ast.kind} Name: {ast.name if hasattr(ast, 'name') else 'Unknown'}")
@@ -331,12 +345,15 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
         lines.extend(format_ast(ast.left, indent + 2))
         lines.extend(format_ast(ast.right, indent + 2))
     elif isinstance(ast, BinaryOp):
-        lines.append(indent_str + "  Binary Operation:")
         lines.append(indent_str + "    Operator: " + ast.op)
         lines.append(indent_str + "    Left Operand:")
         lines.extend(format_ast(ast.left, indent + 4))
         lines.append(indent_str + "    Right Operand:")
         lines.extend(format_ast(ast.right, indent + 4))
+    elif isinstance(ast, UnaryOp):
+        lines.append(indent_str + "    Operator: " + ast.op)
+        lines.append(indent_str + "    Operand:")
+        lines.extend(format_ast(ast.operand, indent + 4))
     elif isinstance(ast, EmptyArgument):
         lines.append(indent_str + "  Empty Argument")
     elif isinstance(ast, Port):

@@ -2,19 +2,9 @@
 
 clear
 
-echo "Verilog to JSON AST"
-
-echo
-
 cd build
 
-./verilog_to_json ../test-inputs/xor.sv
-
-echo 
-
-echo "JSON AST to DataClasses"
-
-echo
+./verilog_to_json ../test-inputs/arrays.sv
 
 cd ..
 

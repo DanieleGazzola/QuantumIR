@@ -2,20 +2,29 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import List, NoReturn
+from typing import NoReturn
 
 from xdsl.builder import Builder
-from xdsl.dialects.builtin import ModuleOp, TensorType, UnrankedTensorType, IntegerType, f64
+from xdsl.dialects.builtin import ModuleOp, IntegerType, VectorType
 from xdsl.ir import Block, Region, SSAValue
+from xdsl.dialects import builtin, arith
 
-from dialects.quantum import *
+import re
 
-from frontend.location import Location
+from dialect.dialect import (
+    InitOp,
+    NotOp,
+    CNotOp,
+    CCNotOp,
+    MeasureOp,
+    FuncOp,
+)
 
 from JSON_to_DataClasses import (
     ASTNode,
     Assignment,
     BinaryOp,
+    UnaryOp,
     CompilationUnit,
     Connection,
     ContinuousAssign,
@@ -61,351 +70,335 @@ class ScopedSymbolTable:
 
 @dataclass(init=False)
 class IRGen:
-    """
-    Implementation of a simple MLIR emission from the Toy AST.
-
-    This will emit operations that are specific to the Toy language, preserving
-    the semantics of the language and (hopefully) allow to perform accurate
-    analysis and transformation based on these high level semantics.
-    """
 
     module: ModuleOp
-    """A "module" matches a Toy source file: containing a list of functions."""
 
     builder: Builder
-    """
-    The builder is a helper class to create IR inside a function. The builder
-    is stateful, in particular it keeps an "insertion point": this is where
-    the next operations will be introduced."""
 
     symbol_table: ScopedSymbolTable | None = None
-    """
-    The symbol table maps a variable name to a value in the current scope.
-    Entering a function creates a new scope, and the function arguments are
-    added to the mapping. When the processing of a function is terminated, the
-    scope is destroyed and the mappings created in this scope are dropped."""
+
+    n: int = 0
 
     def __init__(self):
-        # We create an empty MLIR module and codegen functions one at a time and
-        # add them to the module.
+
         self.module = ModuleOp([])
         self.builder = Builder.at_end(self.module.body.blocks[0])
-
-    def ir_gen_module(self, module_ast: Root) -> ModuleOp:
-        """
-        Public API: convert the AST for a Toy module (source file) to an MLIR
-        Module operation."""
-
-        for f in module_ast.members:
-            if (isinstance(f, Instance)):
-                self.ir_gen_function(f.body)
-
-        # Verify the module after we have finished constructing it, this will check
-        # the structural properties of the IR and invoke any specific verifiers we
-        # have on the Toy operations.
-        try:
-            self.module.verify()
-        except Exception:
-            print("module verification error")
-            raise
-
-        return self.module
-
-    def loc(self, loc: Location):
-        "Helper conversion for a Toy AST location to an MLIR location."
-        # TODO: Need location support in xDSL
-        # return mlir::FileLineColLoc::get(builder.getStringAttr(*loc.file), loc.line, loc.col);
-        pass
-
+    
     def declare(self, var: str, value: SSAValue) -> bool:
-        """
-        Declare a variable in the current scope, return success if the variable
-        wasn't declared yet."""
+        
         assert self.symbol_table is not None
         if var in self.symbol_table:
             return False
         self.symbol_table[var] = value
         return True
 
-    def get_type(self) -> IntegerType:
-        "Build a (qu)bit type."
-        return IntegerType(1)
+    # act on the whole tree
+    def ir_gen_module(self, ast: Root) -> ModuleOp:
 
-    # def ir_gen_proto(self, proto_ast: PrototypeAST) -> FuncOp:
-    #     """
-    #     Create the prototype for a function with as many arguments as the
-    #     provided Toy AST prototype."""
-    #     # location = self.loc(proto_ast.loc)
+        for f in ast.members:
+            if (isinstance(f, Instance)):
+                self.ir_gen_function(f.body)
 
-    #     # This is a generic function, the return type will be inferred later.
-    #     # Arguments type are uniformly unranked tensors.
-    #     func_type = FunctionType.from_lists(
-    #         [self.get_type([])] * len(proto_ast.args), [self.get_type([])]
-    #     )
-    #     return self.builder.insert(FuncOp(proto_ast.name, func_type, Region()))
+        return self.module
 
-    def ir_gen_function(self, function_ast: InstanceBody) -> FuncOp:
-        "Emit a new function and add it to the MLIR module."
+    # act on each function call
+    def ir_gen_function(self, body: InstanceBody) -> FuncOp:
 
-        # keep builder for later
         parent_builder = self.builder
 
-        # Create a scope in the symbol table to hold variable declarations.
         self.symbol_table = ScopedSymbolTable()
 
-        proto_args = [port for port in function_ast.members if isinstance(port, Port)]
+        proto_args = [member for member in body.members if isinstance(member, Port) and member.direction == "In"]
+        
+        arg_types=[]
+        for member in proto_args:
+            # check if it is a vector
+            if "[" in member.type and "]" in member.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", member.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
 
-        # Create the block for the current function
-        block = Block(
-            arg_types=[IntegerType(1) for _ in range(len(proto_args))]
-        )
+                    element_type = IntegerType(1) #type of the elements in the vector
+                    arg_types.append(builtin.VectorType(element_type, [size,]))
+            else:
+                # it's a single bit
+                arg_types.append(builtin.i1)
+
+        block = Block(arg_types=arg_types)
         self.builder = Builder.at_end(block)
 
-        # Declare all the function arguments in the symbol table.
         for name, value in zip(proto_args, block.args):
-            self.declare(name.name, value)
+            self.declare(name.internalSymbol, value)
 
-        # Emit the body of the function.
-        self.ir_gen_expr_list([ca.assignment for ca in function_ast.members if isinstance(ca, ContinuousAssign)])
+        for member in body.members:
+            if isinstance(member, ContinuousAssign):
+                self.ir_gen_expr(member)
 
-        return_types = []
+        proto_return = [member for member in body.members if isinstance(member, Port) and member.direction == "Out"]
 
-        # Implicitly return void if no return statement was emitted.
-        return_op = None
-        # if block.ops:
-        #     last_op = block.last_op
-        #     if isinstance(last_op, ReturnOp):
-        #         return_op = last_op
-        #         if return_op.input is not None:
-        #             return_arg = return_op.input
-        #             return_types = [return_arg.type]
-        # if return_op is None:
-        #     self.builder.insert(ReturnOp())
+        for var in proto_return:
+            self.builder.insert(MeasureOp.from_value(self.symbol_table[var.internalSymbol]))
 
-        input_types = [self.get_type([]) for _ in range(len(proto_args))]
-
-        func_type = FunctionType.from_lists(input_types, return_types)
-
-        # main should be public, all the others private
-        private = function_ast.name != "main"
-
-        # clean up
         self.symbol_table = None
         self.builder = parent_builder
 
-        func = self.builder.insert(
-            FuncOp(function_ast.name, func_type, Region(block), private=private)
-        )
+        func = self.builder.insert(FuncOp(body.name, Region(block)))
 
         return func
 
-    def ir_gen_binary_expr(self, binop: BinaryOp, result: NamedValue) -> SSAValue:
-        "Emit a binary operation"
-
-        # First emit the operations for each side of the operation before emitting
-        # the operation itself. For example if the expression is `a + foo(a)`
-        # 1) First it will visiting the LHS, which will return a reference to the
-        #    value holding `a`. This value should have been emitted at declaration
-        #    time and registered in the symbol table, so nothing would be
-        #    codegen'd. If the value is not in the symbol table, an error has been
-        #    emitted and nullptr is returned.
-        # 2) Then the RHS is visited (recursively) and a call to `foo` is emitted
-        #    and the result value is returned. If an error occurs we get a nullptr
-        #    and propagate.
-
-        lhs = self.ir_gen_variable_expr(binop.left)
-        rhs = self.ir_gen_variable_expr(binop.right)
-
-        # location = self.loc(binop.loc)
-
-        # Derive the operation name from the binary operator. At the moment we only
-        # support '+' and '*'.
-        if binop.op == "BinaryXor":
-            op_1 = self.builder.insert(CNotOp(lhs, result))
-            op_2 = self.builder.insert(CNotOp(rhs, result))
-        else:
-            self.error(f"Unsupported binary operation `{binop.op}`")
-
-        return result
-
-    def ir_gen_variable_expr(self, expr: NamedValue) -> SSAValue:
-        """
-        This is a reference to a variable in an expression. The variable is
-        expected to have been declared and so should have a value in the symbol
-        table, otherwise emit an error and return nullptr."""
-        assert self.symbol_table is not None
-        try:
-            variable = self.symbol_table[expr.name]
-            return variable
-        except Exception as e:
-            self.error(f"error: unknown variable `{expr.name}`", e)
-
-    # def ir_gen_return_expr(self, ret: ReturnExprAST):
-    #     "Emit a return operation. This will return failure if any generation fails."
-
-    #     # location = self.loc(binop.loc)
-
-    #     # 'return' takes an optional expression, handle that case here.
-    #     if ret.expr is not None:
-    #         expr = self.ir_gen_expr(ret.expr)
-    #     else:
-    #         expr = None
-
-    #     self.builder.insert(ReturnOp(expr))
-
-    # def ir_gen_literal_expr(self, lit: LiteralExprAST) -> SSAValue:
-    #     """
-    #     Emit a literal/constant array. It will be emitted as a flattened array of
-    #     data in an Attribute attached to a `toy.constant` operation.
-    #     See documentation on [Attributes](LangRef.md#attributes) for more details.
-    #     Here is an excerpt:
-    #     Attributes are the mechanism for specifying constant data in MLIR in
-    #     places where a variable is never allowed [...]. They consist of a name
-    #     and a concrete attribute value. The set of expected attributes, their
-    #     structure, and their interpretation are all contextually dependent on
-    #     what they are attached to.
-    #     Example, the source level statement:
-    #     var a<2, 3> = [[1, 2, 3], [4, 5, 6]];
-    #     will be converted to:
-    #     %0 = "toy.constant"() {value: dense<tensor<2x3xf64>,
-    #         [[1.000000e+00, 2.000000e+00, 3.000000e+00],
-    #         [4.000000e+00, 5.000000e+00, 6.000000e+00]]>} : () -> tensor<2x3xf64>
-    #     """
-
-    #     # The attribute is a vector with a integer value per element
-    #     # (number) in the array, see `collectData()` below for more details.
-    #     data = self.collect_data(lit)
-
-    #     # Build the MLIR op `toy.constant`. This invokes the `ConstantOp::build`
-    #     # method.
-    #     op = self.builder.insert(ConstantOp.from_list(data, lit.dims))
-    #     return op.res
-
-    # def collect_data(self, expr: ExprAST) -> list[float]:
-    #     """
-    #     Helper function to accumulate the data that compose an array
-    #     literal. It flattens the nested structure in the supplied vector. For
-    #     example with this array:
-    #      [[1, 2], [3, 4]]
-    #     we will generate:
-    #      [ 1, 2, 3, 4 ]
-    #     Individual numbers are represented as doubles.
-    #     Attributes are the way MLIR attaches constant to operations.
-    #     """
-
-    #     if isinstance(expr, LiteralExprAST):
-    #         return expr.flattened_values()
-    #     elif isinstance(expr, NumberExprAST):
-    #         return [expr.val]
-    #     else:
-    #         self.error(
-    #             f"Unsupported expr ({expr}) of type ({type(expr)}), "
-    #             "expected literal or number expr"
-    #         )
-
-    # def ir_gen_call_expr(self, call: CallExprAST) -> SSAValue:
-    #     """
-    #     Emit a call expression. It emits specific operations for the `transpose`
-    #     builtin. Other identifiers are assumed to be user-defined functions.
-    #     """
-    #     assert self.symbol_table is not None
-    #     callee = call.callee
-
-    #     #    auto location = loc(call.loc());
-    #     # Codegen the operands first.
-    #     operands = [self.ir_gen_expr(expr) for expr in call.args]
-
-    #     # Builtin calls have their custom operation, meaning this is a
-    #     # straightforward emission.
-    #     if callee == "transpose":
-    #         if len(operands) != 1:
-    #             self.error(
-    #                 "MLIR codegen encountered an error: toy.transpose "
-    #                 "does not accept multiple arguments"
-    #             )
-    #         op = self.builder.insert(TransposeOp(operands[0]))
-    #         return op.res
-
-    #     # Otherwise this is a call to a user-defined function. Calls to
-    #     # user-defined functions are mapped to a custom call that takes the callee
-    #     # name as an attribute.
-    #     op = self.builder.insert(
-    #         GenericCallOp(callee, operands, [UnrankedTensorTypeF64(f64)])
-    #     )
-
-    #     return op.res[0]
-
-    # def ir_gen_print_expr(self, call: PrintExprAST):
-    #     """
-    #     Emit a print expression. It emits specific operations for two builtins:
-    #     transpose(x) and print(x).
-    #     """
-    #     arg = self.ir_gen_expr(call.arg)
-    #     self.builder.insert(PrintOp(arg))
-
-    # def ir_gen_number_expr(self, num: NumberExprAST) -> SSAValue:
-    #     "Emit a constant for a single number"
-
-    #     constant_op = self.builder.insert(ConstantOp.from_list([num.val], []))
-    #     return constant_op.res
-
+    # act as a switch for the different types of expressions
     def ir_gen_expr(self, expr: ASTNode) -> SSAValue:
-        "Dispatch codegen for the right expression subclass using RTTI."
 
-        if isinstance(expr, Assignment):
-            if isinstance(expr.right, BinaryOp):
-                self.ir_gen_binary_expr(expr.right, expr.left)
-        if isinstance(expr, NamedValue):
-            return self.ir_gen_variable_expr(expr)
-        # if isinstance(expr, LiteralExprAST):
-        #     return self.ir_gen_literal_expr(expr)
-        # if isinstance(expr, CallExprAST):
-        #     return self.ir_gen_call_expr(expr)
-        # if isinstance(expr, NumberExprAST):
-        #     return self.ir_gen_number_expr(expr)
+        if isinstance(expr, ContinuousAssign):
+            return self.ir_gen_assign(expr)
+
+    # act as a switch for the different types of assignements
+    def ir_gen_assign(self, expr: ContinuousAssign) -> SSAValue:
+        
+        assignment = expr.assignment
+
+        if isinstance(assignment.right, Conversion): # initialization of a variable
+            return self.ir_gen_init(assignment)
+        if isinstance(assignment.right, BinaryOp): # binary operation
+            return self.ir_gen_bin_op(assignment)
+        if isinstance(assignment.right, UnaryOp): # unary operation
+            return self.ir_gen_unary_op(assignment)
+    
+    # initialization of a variable
+    # assign var = value;
+    def ir_gen_init(self, expr: Assignment) -> SSAValue:
+
+        symbol = expr.left.symbol
+        value = expr.right.operand.operand.value
+         
+        init_op = self.builder.insert(InitOp.from_value(IntegerType(int(value))))
+
+        self.declare(symbol, init_op.res)
+
+        return init_op.res
+    
+    def ir_gen_unary_op(self, expr: Assignment) -> SSAValue:
+            
+        symbol = expr.left.symbol
+
+        final_op = self.ir_gen_unary(expr.right)
+
+        self.declare(symbol, final_op.res)
+
+        return final_op.res
+
+    def ir_gen_unary(self, expr: UnaryOp) -> IRDLOperation:
+
+        if expr.op == "BitwiseNot":
+            op = self.ir_gen_not(expr)
+            return op
+
+    def ir_gen_not(self, expr: UnaryOp) -> IRDLOperation:
+
+        if isinstance(expr.operand, NamedValue):
+            operand = self.symbol_table[expr.operand.symbol]
+        elif isinstance(expr.operand, BinaryOp):
+            operand = self.ir_gen_bin(expr.operand)
+            operand = operand.res
+
+        not_op = self.builder.insert(NotOp.from_value(operand))
+
+        return not_op
+
+    # binary operation
+    # assign res = value1 ^|& value2;
+    def ir_gen_bin_op(self, expr: Assignment) -> SSAValue:
+
+        symbol = expr.left.symbol
+
+        final_op = self.ir_gen_bin(expr.right)
+
+        self.declare(symbol, final_op.res)
+
+        return final_op.res
+
+    def ir_gen_bin(self, expr: BinaryOp) -> IRDLOperation:
+
+        if expr.op == "BinaryXor":
+
+            op = self.ir_gen_xor(expr)
+            return op
+
+        if expr.op == "BinaryAnd":
+
+            op = self.ir_gen_and(expr)
+            return op
+        
+        if expr.op == "BinaryOr":
+
+            op = self.ir_gen_or(expr)
+            return op
+
+    def ir_gen_xor(self, expr: BinaryOp) -> IRDLOperation:
+
+        # initialize a new qubit or a new qubit register
+        if "[" in expr.type and "]" in expr.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
+                element_type= IntegerType(1)
+                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
         else:
-            self.error(f"MLIR codegen encountered an unhandled expr kind '{expr.kind}'")
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
 
-    def ir_gen_var_decl_expr(self, vardecl: NamedValue) -> SSAValue:
-        """
-        Handle a variable declaration, we'll codegen the expression that forms the
-        initializer and record the value in the symbol table before returning it.
-        Future expressions will be able to reference this variable through symbol
-        table lookup.
-        """
+        self.declare(temp_symbol, init_op.res)
 
-        value = self.ir_gen_expr(vardecl.expr)
+        if isinstance(expr.left, NamedValue):
+            left = self.symbol_table[expr.left.symbol]
+        elif isinstance(expr.left, BinaryOp):
+            left = self.ir_gen_bin(expr.left)
+            left = left.res
 
-        # We have the initializer value, but in case the variable was declared
-        # with specific shape, we emit a "reshape" operation. It will get
-        # optimized out later as needed.
-        if len(vardecl.varType.shape):
-            reshape_op = self.builder.insert(ReshapeOp(value, vardecl.varType.shape))
+        if isinstance(expr.right, NamedValue):
+            right = self.symbol_table[expr.right.symbol]
+        elif isinstance(expr.right, BinaryOp):
+            right = self.ir_gen_bin(expr.right)
+            right = right.res
 
-            value = reshape_op.res
+        cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[temp_symbol]))
 
-        # Register the value in the symbol table.
-        self.declare(vardecl.name, value)
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
 
-        return value
+        self.declare(temp_symbol, cnot_op_1.res)
 
-    def ir_gen_expr_list(self, exprs: Iterable[ASTNode]) -> None:
-        "Codegen a list of expressions, raise error if one of them hit an error."
-        assert self.symbol_table is not None
+        cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[temp_symbol]))
 
-        for expr in exprs:
-            # Specific handling for variable declarations, return statement, and
-            # print. These can only appear in block list and not in nested
-            # expressions.
-            if isinstance(expr, NamedValue):
-                self.ir_gen_var_decl_expr(expr)
-            # elif isinstance(expr, ReturnExprAST):
-            #     self.ir_gen_return_expr(expr)
-            # elif isinstance(expr, PrintExprAST):
-            #     self.ir_gen_print_expr(expr)
-            # else:
-            #     # Generic expression dispatch codegen.
-                self.ir_gen_expr(expr)
+        return cnot_op_2
+
+    def ir_gen_and(self, expr: BinaryOp) -> IRDLOperation:
+        # initialize a new qubit or a new qubit register
+        if "[" in expr.type and "]" in expr.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
+                element_type= IntegerType(1)
+                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
+        else:
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, init_op.res)
+
+        if isinstance(expr.left, NamedValue):
+            left = self.symbol_table[expr.left.symbol]
+        elif isinstance(expr.left, BinaryOp):
+            left = self.ir_gen_bin(expr.left)
+            left = left.res
+
+        if isinstance(expr.right, NamedValue):
+            right = self.symbol_table[expr.right.symbol]
+        elif isinstance(expr.right, BinaryOp):
+            right = self.ir_gen_bin(expr.right)
+            right = right.res
+
+        
+        ccnot_op = self.builder.insert(CCNotOp.from_value(left, right, self.symbol_table[temp_symbol]))
+
+        return ccnot_op
+
+    def ir_gen_or(self, expr: BinaryOp) -> IRDLOperation:
+
+        # initialize a new qubit or a new qubit register
+        if "[" in expr.type and "]" in expr.type:
+                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                if match:
+                    # Extract the keyword, high index, and low index
+                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
+                    high_index = int(match.group(2))
+                    low_index = int(match.group(3))
+                    size = high_index - low_index + 1
+                element_type= IntegerType(1)
+                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
+        else:
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            
+        # auxiliary SSAValue
+        temp_symbol_0 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_0, init_op.res)
+
+        if isinstance(expr.left, NamedValue):
+            left = self.symbol_table[expr.left.symbol]
+        elif isinstance(expr.left, BinaryOp):
+            left = self.ir_gen_bin(expr.left)
+            left = left.res
+
+        if isinstance(expr.right, NamedValue):
+            right = self.symbol_table[expr.right.symbol]
+        elif isinstance(expr.right, BinaryOp):
+            right = self.ir_gen_bin(expr.right)
+            right = right.res
+
+        not_op_1 = self.builder.insert(NotOp.from_value(left))
+        # auxiliary SSAValue
+        temp_symbol_2 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_2, not_op_1.res)
+
+        not_op_2 = self.builder.insert(NotOp.from_value(right))
+        # auxiliary SSAValue
+        temp_symbol_3 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_3, not_op_2.res)
+
+        ccnot_op = self.builder.insert(CCNotOp.from_value(self.symbol_table[temp_symbol_2], self.symbol_table[temp_symbol_3], self.symbol_table[temp_symbol_0]))
+        # auxiliary SSAValue
+        temp_symbol_1 = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol_1, ccnot_op.res)
+
+        not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[temp_symbol_2]))
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, not_op_3.res)
+
+        not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[temp_symbol_3]))
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, not_op_4.res)
+
+        not_op_5 = self.builder.insert(NotOp.from_value(self.symbol_table[temp_symbol_1]))
+        # auxiliary SSAValue
+        temp_symbol = "temp" + str(self.n)
+        self.n += 1
+
+        self.declare(temp_symbol, not_op_5.res)
+
+        return not_op_5
 
     def error(self, message: str, cause: Exception | None = None) -> NoReturn:
         raise IRGenError(message) from cause
