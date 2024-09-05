@@ -4,7 +4,7 @@ clear
 
 cd build
 
-./verilog_to_json ../test-inputs/arrays.sv
+./verilog_to_json ../test-inputs/full_adder.sv
 
 cd ..
 

@@ -18,6 +18,7 @@ from dialect.dialect import (
     CCNotOp,
     MeasureOp,
     FuncOp,
+    GetMemoryEffect,
 )
 
 from JSON_to_DataClasses import (
