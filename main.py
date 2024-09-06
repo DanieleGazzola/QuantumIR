@@ -7,7 +7,7 @@ import JSON_to_DataClasses
 from xdsl.printer import Printer
 from frontend.ir_gen import IRGen
 
-from frontend.ir_transform import RemoveUnusedOperations
+from frontend.ir_transform import RemoveUnusedOperations, CommonSubexpressionElimination
 from xdsl.pattern_rewriter import PatternRewriter, PatternRewriteWalker, RewritePattern
 
 # Main Program
@@ -32,11 +32,12 @@ mlir_gen = IRGen()
 module_op = mlir_gen.ir_gen_module(ast)
 Printer().print_op(module_op)
 
-PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module_op)
+# PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module_op)
+# Printer().print_op(module_op)
+
+print("CSE")
+CommonSubexpressionElimination().apply(module_op)
 Printer().print_op(module_op)
-
-
-
 
 # ------------------------------------------------------
 

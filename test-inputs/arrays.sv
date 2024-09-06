@@ -6,7 +6,7 @@ module vector_operations(
 );
 
     // Assegnazione di valori ai vettori e allo scalare        
-    // Operazione AND elemento per elemento tra i vettori
+   // Operazione AND elemento per elemento tra i vettori
    assign prova1 = vector3 | (vector1 & vector2);
    assign prova2 = vector1 | vector2;
    assign prova3 = vector1 ^ vector2; 
