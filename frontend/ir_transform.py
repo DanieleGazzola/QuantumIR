@@ -1,73 +1,40 @@
-from xdsl.ir import Operation, SSAValue, Block, Region, Use, BlockArgument, OpResult
+from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
 from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
-from dataclasses import dataclass, field
-from typing import TypeVar
-from xdsl.context import MLContext
 from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
 from xdsl.rewriter import Rewriter
-from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
-from xdsl.traits import (
-    IsTerminator,
-    MemoryEffectKind,
-    EffectInstance,
-    SymbolOpInterface,
-    get_effects,
-    IsolatedFromAbove,
-    only_has_effect,
-)
+from xdsl.traits import EffectInstance, IsolatedFromAbove
 
+from dataclasses import dataclass
+
+from typing import TypeVar
+
+from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
+
+                            ##### SUPPORT FUNCTIONS #####
+
+# check if the operation is dead
 def is_trivially_dead(op: Operation) -> bool:
 
-    if isinstance(op, ModuleOp):
+    # these types of operations are never dead
+    if isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
         return False
-    if isinstance(op, FuncOp):
-        return False
-    if isinstance(op, MeasureOp):
-        return False
-
-    return (
-        (not op.res.uses)
-        and (not op.get_trait(IsTerminator))
-        and (not op.get_trait(SymbolOpInterface))
-        and result_only_effects(op)
-    )
-
-def result_only_effects(rootOp: Operation) -> bool:
-
-    effects = GetMemoryEffect.get_effects(rootOp)
     
-    return effects is not None and all(
-        e.kind == MemoryEffectKind.READ
-        or (
-            e.kind == MemoryEffectKind.ALLOC
-            and isinstance(v := e.value, SSAValue)
-            and rootOp.is_ancestor(v.owner)
-        )
-        or (
-            e.kind == MemoryEffectKind.WRITE
-            and isinstance(v := e.value, SSAValue)
-            and rootOp.is_ancestor(v.owner)
-        )
-        for e in effects
-    )
+    # if the result of the operation is never used then it is dead
+    return not op.res.uses
 
+
+
+#
 def has_other_modifications(from_op: Operation) -> bool:
     effects = set[EffectInstance]()
     next_op = from_op.next_op
     while not isinstance(next_op, MeasureOp):
         effects = GetMemoryEffect.get_effects(next_op)
-
-
-        #### need to check if the result of from_op is modified
-
-
-        # doesn't work since traits is a set and is not ordered
-
-        # if len(effects) >= 2:
-        #     second_last_effect = list(effects)[-2]
-        #     if second_last_effect.value == from_op.res:
-        #         return True
+        if len(effects) >= 2:
+            second_last_effect = list(effects)[-2]
+            if second_last_effect.value == from_op.res:
+                return True
         next_op = next_op.next_op
     return False
 
@@ -91,6 +58,7 @@ class OperationInfo:
     def operands(self):
         return self.op.operands._op._operands
 
+    #
     def sub_operand(self, operand: OpResult):
         all_operand = tuple()
         all_operand += (operand.owner.name,)
@@ -108,6 +76,7 @@ class OperationInfo:
         
         return all_operand
     
+    #
     def hash_operands(self):
         all_operands = tuple()
 
@@ -158,8 +127,10 @@ class KnownOps:
     def __contains__(self, k: Operation):
         return OperationInfo(k) in self._known_ops
 
-    def get(self, k: Operation, default: _D = None) -> Operation | _D:
-        return self._known_ops.get(OperationInfo(k), default)
+    def get(self, k: Operation) -> Operation | None:
+        if op := self._known_ops.get(OperationInfo(k)):
+            return op
+        return None
 
     def pop(self, k: Operation):
         return self._known_ops.pop(OperationInfo(k))
@@ -181,6 +152,7 @@ class CSEDriver:
         if op.parent is not None:
             self._rewriter.erase_op(op)
 
+    #
     def _replace_and_delete(self, op: Operation, existing: Operation):
 
         def wasVisited(use: Use):
@@ -193,15 +165,10 @@ class CSEDriver:
         if all(not r.uses for r in op.results):
             self._commit_erasure(op)
 
+    #
     def _simplify_operation(self, op: Operation):
 
-        if isinstance(op, InitOp):
-            return
-        if isinstance(op, ModuleOp):
-            return
-        if isinstance(op, FuncOp):
-            return
-        if isinstance(op, MeasureOp):
+        if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
         if existing := self._known_ops.get(op):
@@ -211,6 +178,7 @@ class CSEDriver:
         self._known_ops[op] = op
         return
 
+    #
     def _simplify_block(self, block: Block):
         for op in block.ops:
             if op.regions:
@@ -227,6 +195,7 @@ class CSEDriver:
         
             self._simplify_operation(op)
 
+    #
     def _simplify_region(self, region: Region):
         if not region.blocks:
             return
@@ -239,6 +208,7 @@ class CSEDriver:
 
             self._known_ops = old_scope
 
+    #
     def simplify(self, thing: Operation | Block | Region):
         match thing:
             case Operation():
