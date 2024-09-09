@@ -1,6 +1,5 @@
 from __future__ import annotations
-from xdsl.dialects import builtin
-from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType, AnyAttr, IntAttr
+from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType, AnyAttr
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
 from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def, traits_def
 
@@ -27,13 +26,13 @@ class InitOp(IRDLOperation):
         if isinstance(values, IntegerType):
             # Single IntegerType case
             result_types = [IntegerType(1)]
-            attributes = {"values": values}
+            attributes = {"type": values}
         elif isinstance(values, VectorType):
             # Vector of IntegerType case
             element_type=values.get_element_type()
             size=values.get_shape()[0]
             result_types= [VectorType(element_type, [size,])]     
-            attributes = {"values": values}
+            attributes = {"type": values}
         else:
             raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
 

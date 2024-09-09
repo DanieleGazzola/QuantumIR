@@ -7,8 +7,6 @@ from xdsl.traits import EffectInstance, IsolatedFromAbove
 
 from dataclasses import dataclass
 
-from typing import TypeVar
-
 from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTIONS #####
@@ -25,17 +23,25 @@ def is_trivially_dead(op: Operation) -> bool:
 
 
 
-#
+# check if the existing SSAValue will be changed in the future
+# if not we can safely use it to replace the current operation
 def has_other_modifications(from_op: Operation) -> bool:
+
     effects = set[EffectInstance]()
     next_op = from_op.next_op
+
+    # check on every operation until the end of the function
     while not isinstance(next_op, MeasureOp):
         effects = GetMemoryEffect.get_effects(next_op)
-        if len(effects) >= 2:
+        
+        # il the op is an InitOp surely will not change the SSAValue 
+        if not isinstance(next_op, InitOp):
             second_last_effect = list(effects)[-2]
             if second_last_effect.value == from_op.res:
                 return True
+            
         next_op = next_op.next_op
+
     return False
 
 
@@ -58,7 +64,7 @@ class OperationInfo:
     def operands(self):
         return self.op.operands._op._operands
 
-    #
+    # recursive function to get all the operands of an operation
     def sub_operand(self, operand: OpResult):
         all_operand = tuple()
         all_operand += (operand.owner.name,)
@@ -76,7 +82,7 @@ class OperationInfo:
         
         return all_operand
     
-    #
+    # hash the operands of the operation
     def hash_operands(self):
         all_operands = tuple()
 
@@ -104,9 +110,6 @@ class OperationInfo:
 
     def __eq__(self, other: object):
         return hash(self) == hash(other)
-
-
-_D = TypeVar("_D")
 
 class KnownOps:
 
@@ -152,34 +155,43 @@ class CSEDriver:
         if op.parent is not None:
             self._rewriter.erase_op(op)
 
-    #
+    # replace the SSAValue of the current operation with the existing one
+    # and delete the current operation
     def _replace_and_delete(self, op: Operation, existing: Operation):
 
         def wasVisited(use: Use):
             return use.operation not in self._known_ops
 
+        # replace all future uses of the current operation results with the existing one
         for o, n in zip(op.results, existing.results, strict=True):
             if all(wasVisited(u) for u in o.uses):
                 o.replace_by(n)
 
+        # if there are no uses delete the operationS
         if all(not r.uses for r in op.results):
             self._commit_erasure(op)
 
-    #
+    # simplify the operation
     def _simplify_operation(self, op: Operation):
 
+        # never simplify these types of operations
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
+        # chck if the operation is already known
         if existing := self._known_ops.get(op):
-            if (op.parent_block() is existing.parent_block() and not has_other_modifications(existing)):
+            # if the existing op will not be changed in the future we can replace the current operation
+            if not has_other_modifications(existing):
                 self._replace_and_delete(op, existing)
                 return
+        
+        # if the operation is not known we add it to the known operations
         self._known_ops[op] = op
         return
 
-    #
+    # simplify the block
     def _simplify_block(self, block: Block):
+
         for op in block.ops:
             if op.regions:
                 might_be_isolated = isinstance(op, UnregisteredOp) or (op.get_trait(IsolatedFromAbove) is not None)
@@ -195,8 +207,9 @@ class CSEDriver:
         
             self._simplify_operation(op)
 
-    #
+    # simplify the region
     def _simplify_region(self, region: Region):
+
         if not region.blocks:
             return
 
@@ -208,8 +221,9 @@ class CSEDriver:
 
             self._known_ops = old_scope
 
-    #
+    # switch between the different simplification functions
     def simplify(self, thing: Operation | Block | Region):
+
         match thing:
             case Operation():
                 for region in thing.regions:

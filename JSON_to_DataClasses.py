@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import List, Optional, Union, Any, Dict, Type
+from typing import List, Optional, Union, Any, Dict
 
 @dataclass
 class ASTNode:

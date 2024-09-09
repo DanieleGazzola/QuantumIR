@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import NoReturn
 
 from xdsl.builder import Builder
 from xdsl.dialects.builtin import ModuleOp, IntegerType, VectorType
 from xdsl.ir import Block, Region, SSAValue
-from xdsl.dialects import builtin, arith
+from xdsl.dialects import builtin
 
 import re
 
@@ -18,7 +17,6 @@ from dialect.dialect import (
     CCNotOp,
     MeasureOp,
     FuncOp,
-    GetMemoryEffect,
 )
 
 from JSON_to_DataClasses import (
@@ -177,7 +175,7 @@ class IRGen:
         symbol = expr.left.symbol
         value = expr.right.operand.operand.value
          
-        init_op = self.builder.insert(InitOp.from_value(IntegerType(int(value))))
+        init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
 
         self.declare(symbol, init_op.res)
 
@@ -254,7 +252,7 @@ class IRGen:
                 element_type= IntegerType(1)
                 init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
         else:
-            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
             
         # auxiliary SSAValue
         temp_symbol = "temp" + str(self.n)
@@ -299,7 +297,7 @@ class IRGen:
                 element_type= IntegerType(1)
                 init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
         else:
-            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
 
         # auxiliary SSAValue
         temp_symbol = "temp" + str(self.n)
@@ -338,7 +336,7 @@ class IRGen:
                 element_type= IntegerType(1)
                 init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
         else:
-            init_op = self.builder.insert(InitOp.from_value(IntegerType(0)))
+            init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
             
         # auxiliary SSAValue
         temp_symbol_0 = "temp" + str(self.n)
