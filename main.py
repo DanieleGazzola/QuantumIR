@@ -22,55 +22,46 @@ with open(output_path, 'w') as file:
     file.write(json_data)
 
 # Convert JSON to DataClasses
-ast = JSON_to_DataClasses.json_to_ast(json_data)
+root = JSON_to_DataClasses.json_to_ast(json_data)
 
 # Output DataClasses file
 output_path = 'test-outputs/dataclass_ast.txt'
 with open(output_path, 'w') as file:
-    formatted_ast = JSON_to_DataClasses.format_ast(ast)
+    formatted_ast = JSON_to_DataClasses.format_root(root)
     file.write("\n".join(formatted_ast))
 
-# Generate MLIR
-mlir_gen = IRGen()
-module_op = mlir_gen.ir_gen_module(ast)
-Printer().print_op(module_op)
+# Generate IR
+ir_gen = IRGen()
+module = ir_gen.ir_gen_module(root)
+print("\nIR:\n")
+Printer().print_op(module)
 
 # Transformations
-print("")
-print("")
-print("Transformations:")
-print("")
+print("\n\nTransformations:")
 
 while True:
-    start_op = module_op.clone()
 
-    PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module_op)
-    if len(start_op.body.block._first_op.body.block.ops) != len(module_op.body.block._first_op.body.block.ops):
-        print("")
-        print("Removed unused operations")
-        print("")
-        Printer().print_op(module_op)
-        print("")
+    start_module = module.clone()
+    PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module)
 
-    middle_op = module_op.clone()
-    
-    CommonSubexpressionElimination().apply(module_op)
-    if len(middle_op.body.block._first_op.body.block.ops) != len(module_op.body.block._first_op.body.block.ops):
-        print("")
-        print("Common subexpression elimination")
-        print("")
-        Printer().print_op(module_op)
-        print("")
+    # check if any unused operations were removed
+    if len(start_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+        print("\n\nRemoved unused operations")
+        Printer().print_op(module)
 
-    if len(start_op.body.block._first_op.body.block.ops) == len(module_op.body.block._first_op.body.block.ops):
-        print("")
-        print("No more transformations possible")
-        print("")
+    middle_module = module.clone()
+    CommonSubexpressionElimination().apply(module)
+
+    # check if any common subexpressions were eliminated
+    if len(middle_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+        print("\n\nCommon subexpression elimination")
+        Printer().print_op(module)
+
+    # check if there were no changes in the last iteration
+    if len(start_module.body.block._first_op.body.block.ops) == len(module.body.block._first_op.body.block.ops):
+        print("\n\nNo more transformations possible\n")
         break
 
 # Final IR
-print("")
-print("Final IR:")
-print("")
-Printer().print_op(module_op)
-print("")
+print("\nFinal IR:\n")
+Printer().print_op(module)

@@ -7,6 +7,7 @@ from xdsl.builder import Builder
 from xdsl.dialects.builtin import ModuleOp, IntegerType, VectorType
 from xdsl.ir import Block, Region, SSAValue
 from xdsl.dialects import builtin
+from xdsl.irdl import IRDLOperation
 
 import re
 

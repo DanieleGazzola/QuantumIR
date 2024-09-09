@@ -1,21 +1,23 @@
 from __future__ import annotations
-from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType, AnyAttr
+
+from typing import ClassVar, TypeVar
+
+from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
 from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def, traits_def
-
 from xdsl.traits import MemoryEffect, MemoryEffectKind, EffectInstance, OpTrait
 
 class GetMemoryEffect(MemoryEffect):
 
     @classmethod
-    def get_effects(cls, op: Operation) -> set[EffectInstance] | None:
+    def get_effects(cls, op: IRDLOperation) -> set[EffectInstance] | None:
         return op.traits
 
 @irdl_op_definition
 class InitOp(IRDLOperation):
 
     name = "quantum.init"
-    value: IntegerType = attr_def(AnyAttr())
+    value: IntegerType = attr_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
     traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
@@ -56,7 +58,7 @@ class InitOp(IRDLOperation):
 class NotOp(IRDLOperation):
 
     name = "quantum.not"
-    target: Operand = operand_def(AnyAttr())
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
     traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
@@ -77,8 +79,8 @@ class NotOp(IRDLOperation):
 class CNotOp(IRDLOperation):
 
     name = "quantum.cnot"
-    control: Operand = operand_def(AnyAttr())
-    target: Operand = operand_def(AnyAttr())
+    control: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
     traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
@@ -98,9 +100,9 @@ class CNotOp(IRDLOperation):
 class CCNotOp(IRDLOperation):
 
     name = "quantum.ccnot"
-    control1: Operand = operand_def(AnyAttr())
-    control2: Operand = operand_def(AnyAttr())
-    target: Operand = operand_def(AnyAttr())
+    control1: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    control2: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
     traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
