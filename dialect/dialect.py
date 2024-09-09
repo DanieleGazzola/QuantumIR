@@ -67,7 +67,7 @@ class NotOp(IRDLOperation):
         else:
             size=target.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
-        traits = {EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)}
+        self.traits = {EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)}
     
     @staticmethod
     def from_value(value: SSAValue) -> NotOp:
@@ -89,7 +89,7 @@ class CNotOp(IRDLOperation):
         else:
             size = control.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control, target])
-        traits = {EffectInstance(MemoryEffectKind.READ, self.control), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)}
+        self.traits = {EffectInstance(MemoryEffectKind.READ, self.control), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)}
 
     @staticmethod
     def from_value(control: SSAValue, target: SSAValue) -> CNotOp:
@@ -111,7 +111,7 @@ class CCNotOp(IRDLOperation):
         else:
             size = control1.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control1, control2, target])
-        traits = {EffectInstance(MemoryEffectKind.READ, self.control1), EffectInstance(MemoryEffectKind.READ, self.control2), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)}
+        self.traits = {EffectInstance(MemoryEffectKind.READ, self.control1), EffectInstance(MemoryEffectKind.READ, self.control2), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)}
 
     @staticmethod
     def from_value(control1: SSAValue, control2: SSAValue, target: SSAValue) -> CCNotOp:
@@ -131,7 +131,7 @@ class MeasureOp(IRDLOperation):
         else:
             size=value.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[value])
-        traits = {EffectInstance(MemoryEffectKind.WRITE, self.value)}
+        self.traits = {EffectInstance(MemoryEffectKind.WRITE, self.value)}
 
     @staticmethod
     def from_value(value: SSAValue) -> MeasureOp:

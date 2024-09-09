@@ -32,11 +32,41 @@ mlir_gen = IRGen()
 module_op = mlir_gen.ir_gen_module(ast)
 Printer().print_op(module_op)
 
-# PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module_op)
-# Printer().print_op(module_op)
+print("")
+print("")
+print("Transformations:")
+print("")
 
-print("CSE")
-CommonSubexpressionElimination().apply(module_op)
+while True:
+    start_op = module_op.clone()
+
+    PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module_op)
+    if len(start_op.body.block._first_op.body.block.ops) != len(module_op.body.block._first_op.body.block.ops):
+        print("")
+        print("Removed unused operations")
+        print("")
+        Printer().print_op(module_op)
+        print("")
+
+    middle_op = module_op.clone()
+    
+    CommonSubexpressionElimination().apply(module_op)
+    if len(middle_op.body.block._first_op.body.block.ops) != len(module_op.body.block._first_op.body.block.ops):
+        print("")
+        print("Common subexpression elimination")
+        print("")
+        Printer().print_op(module_op)
+        print("")
+
+    if len(start_op.body.block._first_op.body.block.ops) == len(module_op.body.block._first_op.body.block.ops):
+        print("")
+        print("No more transformations possible")
+        print("")
+        break
+
+print("")
+print("Final IR:")
+print("")
 Printer().print_op(module_op)
 
 # ------------------------------------------------------
