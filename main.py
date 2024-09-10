@@ -5,6 +5,7 @@ from xdsl.printer import Printer
 from frontend.ir_gen import IRGen
 
 from frontend.ir_transform import RemoveUnusedOperations, CommonSubexpressionElimination
+from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from xdsl.pattern_rewriter import PatternRewriteWalker
 
 # Main Program
@@ -55,6 +56,14 @@ while True:
     # check if any common subexpressions were eliminated
     if len(middle_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
         print("\n\nCommon subexpression elimination")
+        Printer().print_op(module)
+
+    end_module = module.clone()
+    HermitianGatesElimination().apply(module)
+
+    # check if any common subexpressions were eliminated
+    if len(end_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+        print("\n\nHermitian elimination")
         Printer().print_op(module)
 
     # check if there were no changes in the last iteration

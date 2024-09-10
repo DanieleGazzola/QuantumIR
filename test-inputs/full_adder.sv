@@ -5,7 +5,7 @@ module FullAdder(input logic a, b, cin,
 
     assign temp1 = a ^ b;
 
-    assign temp2 = (a ^ b) & cin;
+    assign temp2 = a ^ b;
 
     assign temp3 = a & b;
 

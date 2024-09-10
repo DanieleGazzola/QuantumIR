@@ -1,5 +1,4 @@
 from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
-from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
 from xdsl.rewriter import Rewriter
@@ -9,36 +8,25 @@ from dataclasses import dataclass
 
 from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
 
-                            ##### SUPPORT FUNCTIONS #####
-
-# check if the operation is dead
-def is_trivially_dead(op: Operation) -> bool:
-
-    # these types of operations are never dead
-    if isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
-        return False
-    
-    # if the result of the operation is never used then it is dead
-    return not op.res.uses
-
+                            ##### SUPPORT FUNCTION #####
 
 
 # check if the existing SSAValue will be changed in the future
 # if not we can safely use it to replace the current operation
-def has_other_modifications(from_op: Operation) -> bool:
+def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
 
     effects = set[EffectInstance]()
     next_op = from_op.next_op
 
     # check on every operation until the end of the function
-    while not isinstance(next_op, MeasureOp):
+    while not next_op is to_op:
         effects = GetMemoryEffect.get_effects(next_op)
         
         # il the op is an InitOp surely will not change the SSAValue 
         if not isinstance(next_op, InitOp):
-            second_last_effect = list(effects)[-2]
-            if second_last_effect.value == from_op.res:
-                return True
+            for effect in effects:
+                if effect.value == from_op.res:
+                    return True
             
         next_op = next_op.next_op
 
@@ -63,24 +51,6 @@ class OperationInfo:
     @property
     def operands(self):
         return self.op.operands._op._operands
-
-    # recursive function to get all the operands of an operation
-    def sub_operand(self, operand: OpResult):
-        all_operand = tuple()
-        all_operand += (operand.owner.name,)
-
-        for sub_operand in operand.owner.operands:
-            if isinstance(sub_operand, BlockArgument):
-                all_operand += (sub_operand.index,)
-            elif isinstance(sub_operand, OpResult):
-                if isinstance(sub_operand.owner, InitOp):
-                    all_operand += (sub_operand.owner.name,)
-                else:
-                    all_operand += self.sub_operand(sub_operand)
-            else:
-                return None
-        
-        return all_operand
     
     # hash the operands of the operation
     def hash_operands(self):
@@ -90,10 +60,7 @@ class OperationInfo:
             if isinstance(operand, BlockArgument):
                 all_operands += (operand.index,)
             elif isinstance(operand, OpResult):
-                if isinstance(operand.owner, InitOp):
-                    all_operands += (operand.owner.name,)
-                else:
-                    all_operands += self.sub_operand(operand)
+                all_operands += ("op",)
             else:
                 return None
 
@@ -109,7 +76,33 @@ class OperationInfo:
         )
 
     def __eq__(self, other: object):
-        return hash(self) == hash(other)
+
+        my_effects = GetMemoryEffect.get_effects(self.op)
+        other_effects = GetMemoryEffect.get_effects(other.op)
+
+        value = self.name == other.name and self.result_types == other.result_types and list(GetMemoryEffect.get_effects(self.op))[-2].value == list(GetMemoryEffect.get_effects(other.op))[-1].value
+
+        if len(my_effects) != len(other_effects):
+            return False
+        
+        # not operation
+        if len(my_effects) == 2:
+            return value
+
+        # cnot operation
+        if len(my_effects) == 3:
+            return (
+                value and
+                list(GetMemoryEffect.get_effects(self.op))[0].value == list(GetMemoryEffect.get_effects(other.op))[0].value
+         )
+
+        # ccnot operation
+        if len(my_effects) == 4:
+            return (
+                value and
+                list(GetMemoryEffect.get_effects(self.op))[0].value == list(GetMemoryEffect.get_effects(other.op))[0].value and
+                list(GetMemoryEffect.get_effects(self.op))[1].value == list(GetMemoryEffect.get_effects(other.op))[1].value
+            )
 
 class KnownOps:
 
@@ -140,9 +133,9 @@ class KnownOps:
 
 
 
-                            ##### CLASS TO MANAGE CSE TRANSFORMATIONS #####
+                            ##### CLASS TO MANAGE HGE TRANSFORMATIONS #####
 
-class CSEDriver:
+class HGEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
@@ -163,13 +156,14 @@ class CSEDriver:
             return use.operation not in self._known_ops
 
         # replace all future uses of the current operation results with the existing one
-        for o, n in zip(op.results, existing.results, strict=True):
+        for o, n in zip(op.results, list(GetMemoryEffect.get_effects(existing.op))[-2].value, strict=True):
             if all(wasVisited(u) for u in o.uses):
                 o.replace_by(n)
 
         # if there are no uses delete the operationS
         if all(not r.uses for r in op.results):
             self._commit_erasure(op)
+            self._commit_erasure(existing)
 
     # simplify the operation
     def _simplify_operation(self, op: Operation):
@@ -181,7 +175,7 @@ class CSEDriver:
         # check if the operation is already known
         if existing := self._known_ops.get(op):
             # if the existing op will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing):
+            if not has_uses_between(existing, op):
                 self._replace_and_delete(op, existing)
                 return
         
@@ -235,15 +229,9 @@ class CSEDriver:
 
 
 
-                            ##### MAIN CLASSES TO INVOKE THE TRANSFORMATIONS #####
+                            ##### MAIN CLASSES TO INVOKE THE TRANSFORMATION #####
 
-class RemoveUnusedOperations(RewritePattern):
-
-    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-        if is_trivially_dead(op) and op.parent is not None:
-            rewriter.erase_op(op)
-
-class CommonSubexpressionElimination(ModulePass):
+class HermitianGatesElimination(ModulePass):
 
     def apply(self, op: ModuleOp) -> None:
-        CSEDriver().simplify(op)
+        HGEDriver().simplify(op)
