@@ -1,3 +1,4 @@
+from xml.etree.ElementTree import tostring
 from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
 from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
@@ -54,55 +55,36 @@ class OperationInfo:
     
     # hash the operands of the operation
     def hash_operands(self):
-        all_operands = tuple()
-
-        for operand in self.operands:
-            if isinstance(operand, BlockArgument):
-                all_operands += (operand.index,)
-            elif isinstance(operand, OpResult):
-                all_operands += ("op",)
-            else:
-                return None
-
-        return hash(all_operands)
-
+        operands = tuple()
+        if(self.op.name =="quantum.cnot"):
+            operands += (self.op.control,)
+        elif(self.op.name =="quantum.ccnot"):
+            operands += (self.op.control1,self.op.control2,)
+        elif(self.op.name=="quantum.not"):
+            operands += (self.op.target,)
+        return hash(operands)
+    
+    # this function is used to check if two hashes match
     def __hash__(self):
         return hash(
             (
                 self.name,
-                hash(self.result_types),
-                self.hash_operands()
+                self.hash_operands(),
             )
         )
+    
 
+    # other is the second operation matched, self is the first
+    # qui non ho messo nessun tipo di logica, ho notato che quando facciamo una get confronta automaticamente le chiavi usando
+    # hash. Di conseguenza lì già matcha solo le operazioni con lo stesso nome e gli stessi operandi di controllo ( e il loro numero).
+    # In questo eq ho semplicemente messo il confronto tra le due operazioni su target e result.
     def __eq__(self, other: object):
 
-        my_effects = GetMemoryEffect.get_effects(self.op)
-        other_effects = GetMemoryEffect.get_effects(other.op)
-
-        value = self.name == other.name and self.result_types == other.result_types and list(GetMemoryEffect.get_effects(self.op))[-2].value == list(GetMemoryEffect.get_effects(other.op))[-1].value
-
-        if len(my_effects) != len(other_effects):
-            return False
+        value = (self.name == other.name and  # same name
+                self.result_types == other.result_types and # same result types
+                other.op.target == self.op.res) # other target is my result
         
-        # not operation
-        if len(my_effects) == 2:
-            return value
-
-        # cnot operation
-        if len(my_effects) == 3:
-            return (
-                value and
-                list(GetMemoryEffect.get_effects(self.op))[0].value == list(GetMemoryEffect.get_effects(other.op))[0].value
-         )
-
-        # ccnot operation
-        if len(my_effects) == 4:
-            return (
-                value and
-                list(GetMemoryEffect.get_effects(self.op))[0].value == list(GetMemoryEffect.get_effects(other.op))[0].value and
-                list(GetMemoryEffect.get_effects(self.op))[1].value == list(GetMemoryEffect.get_effects(other.op))[1].value
-            )
+        return value
 
 class KnownOps:
 
@@ -139,7 +121,7 @@ class HGEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
-
+    n = 0
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
@@ -156,9 +138,10 @@ class HGEDriver:
             return use.operation not in self._known_ops
 
         # replace all future uses of the current operation results with the existing one
-        for o, n in zip(op.results, list(GetMemoryEffect.get_effects(existing.op))[-2].value, strict=True):
-            if all(wasVisited(u) for u in o.uses):
-                o.replace_by(n)
+        # !!! orrible solution with the tuple
+        for o, n in zip([op.results,], [existing.target,], strict=True):
+            if all(wasVisited(u) for u in o[0].uses):
+                o[0].replace_by(n)
 
         # if there are no uses delete the operationS
         if all(not r.uses for r in op.results):
@@ -171,9 +154,10 @@ class HGEDriver:
         # never simplify these types of operations
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
-
+        # print("Check if the operation is already known:", op.name, op._operands)
         # check if the operation is already known
         if existing := self._known_ops.get(op):
+            # print(op," matching with ",existing)
             # if the existing op will not be changed in the future we can replace the current operation
             if not has_uses_between(existing, op):
                 self._replace_and_delete(op, existing)
