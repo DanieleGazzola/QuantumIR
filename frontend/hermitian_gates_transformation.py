@@ -65,6 +65,7 @@ class OperationInfo:
         return hash(operands)
     
     # this function is used to check if two hashes match
+    # computes the hash of the name and the operation operands.
     def __hash__(self):
         return hash(
             (
@@ -73,7 +74,6 @@ class OperationInfo:
             )
         )
     
-
     # other is the second operation matched, self is the first
     # qui non ho messo nessun tipo di logica, ho notato che quando facciamo una get confronta automaticamente le chiavi usando
     # hash. Di conseguenza lì già matcha solo le operazioni con lo stesso nome e gli stessi operandi di controllo ( e il loro numero).
@@ -138,7 +138,7 @@ class HGEDriver:
             return use.operation not in self._known_ops
 
         # replace all future uses of the current operation results with the existing one
-        # !!! orrible solution with the tuple
+        # !!! ORRIBLE SOLUTION WITH THE TUPLE else TypeError: OpResult not iterable
         for o, n in zip([op.results,], [existing.target,], strict=True):
             if all(wasVisited(u) for u in o[0].uses):
                 o[0].replace_by(n)
@@ -154,10 +154,9 @@ class HGEDriver:
         # never simplify these types of operations
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
-        # print("Check if the operation is already known:", op.name, op._operands)
+
         # check if the operation is already known
         if existing := self._known_ops.get(op):
-            # print(op," matching with ",existing)
             # if the existing op will not be changed in the future we can replace the current operation
             if not has_uses_between(existing, op):
                 self._replace_and_delete(op, existing)
@@ -210,8 +209,6 @@ class HGEDriver:
                 self._simplify_block(thing)
             case Region():
                 self._simplify_region(thing)
-
-
 
                             ##### MAIN CLASSES TO INVOKE THE TRANSFORMATION #####
 

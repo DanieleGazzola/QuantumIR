@@ -10,10 +10,20 @@ from xdsl.pattern_rewriter import PatternRewriteWalker
 
 # Main Program
 
-# Read JSON file
+# Read JSON file and fix last characters
 file_path = 'build/output.json'
+with open(file_path, 'r') as file:
+    data = file.read()
+
+pos = data.rfind("}")
+# Se trovi la parentesi graffa chiusa, taglia il contenuto dopo di essa
+if pos != -1:
+    data = data[:pos + 1]
+# Riscrivi il file senza il contenuto successivo alla parentesi graffa
+with open(file_path, 'w') as file:
+    file.write(data)
+
 json_data = JSON_to_DataClasses.read_json_file(file_path)
-json_data = json_data[:-2]
 
 # Output JSON file
 output_dir = 'test-outputs'
