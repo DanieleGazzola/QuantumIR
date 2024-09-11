@@ -19,7 +19,7 @@ def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
     effects = set[EffectInstance]()
     next_op = from_op.next_op
 
-    # check on every operation until the end of the function
+    # check on every operation until the end of the function, top to bottom
     while not next_op is to_op:
         effects = GetMemoryEffect.get_effects(next_op)
         
@@ -54,14 +54,15 @@ class OperationInfo:
         return self.op.operands._op._operands
     
     # hash the operands of the operation
+    # in order for two operation to match they must have the same identical control qubits.
     def hash_operands(self):
         operands = tuple()
         if(self.op.name =="quantum.cnot"):
             operands += (self.op.control,)
         elif(self.op.name =="quantum.ccnot"):
             operands += (self.op.control1,self.op.control2,)
-        elif(self.op.name=="quantum.not"):
-            operands += (self.op.target,)
+        # if it is a quantum.not the target do not need to match. The only thing to match is the second target
+        # with the firt result (checked in eq)
         return hash(operands)
     
     # this function is used to check if two hashes match
@@ -79,11 +80,9 @@ class OperationInfo:
     # hash. Di conseguenza lì già matcha solo le operazioni con lo stesso nome e gli stessi operandi di controllo ( e il loro numero).
     # In questo eq ho semplicemente messo il confronto tra le due operazioni su target e result.
     def __eq__(self, other: object):
-
         value = (self.name == other.name and  # same name
                 self.result_types == other.result_types and # same result types
                 other.op.target == self.op.res) # other target is my result
-        
         return value
 
 class KnownOps:

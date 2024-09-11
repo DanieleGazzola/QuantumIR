@@ -9,16 +9,16 @@ from dialect import dialect as quantum
 @ModuleOp
 @Builder.implicit_region
 def module():
-    main_type = FunctionType.from_lists([], [])
-
     @Builder.implicit_region
     def main() -> None:
         a_0 = quantum.InitOp(quantum.IntegerType(1)).res
         a_1 = quantum.InitOp(quantum.IntegerType(1)).res
         a_2 = quantum.InitOp(quantum.IntegerType(1)).res
-        a_3 = quantum.NotOp(a_0).res
-        a_4 = quantum.NotOp(a_3).res
+        a_3 = quantum.CCNotOp(a_0, a_1, a_2).res
+        a_31 = quantum.NotOp(a_0).res
+        a_4 = quantum.CCNotOp(a_0, a_1, a_3).res
         quantum.MeasureOp(a_4)
+        quantum.MeasureOp(a_31)
 
     quantum.FuncOp("prova", main)
 
