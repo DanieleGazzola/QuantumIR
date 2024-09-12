@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import List, Optional, Union, Any, Dict, Type
+from typing import List, Optional, Union, Any, Dict
 
 @dataclass
 class ASTNode:
@@ -270,7 +270,7 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
 
 ##################################################################################################################################################################
 
-def json_to_ast(json_data: str) -> ASTNode:
+def json_to_ast(json_data: str) -> Root:
     data = json.loads(json_data)
     return from_dict(data)
 
@@ -374,3 +374,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
     return lines
 
 ##################################################################################################################################################################
+
+def format_root(root: Root, indent: int = 0) -> str:
+    return format_ast(root, indent)

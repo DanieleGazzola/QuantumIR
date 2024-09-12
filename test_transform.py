@@ -1,54 +1,28 @@
-import os
-
-import JSON_to_DataClasses
 from xdsl.printer import Printer
-from frontend.ir_gen import IRGen
-
 from frontend.ir_transform import RemoveUnusedOperations, CommonSubexpressionElimination
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from xdsl.pattern_rewriter import PatternRewriteWalker
+from xdsl.dialects.builtin import ModuleOp, FunctionType
+from xdsl.builder import Builder
+from dialect import dialect as quantum
 
-# Main Program
+@ModuleOp
+@Builder.implicit_region
+def module():
+    @Builder.implicit_region
+    def main() -> None:
+        a_0 = quantum.InitOp(quantum.IntegerType(1)).res
+        a_1 = quantum.InitOp(quantum.IntegerType(1)).res
+        a_2 = quantum.InitOp(quantum.IntegerType(1)).res
+        a_3 = quantum.CCNotOp(a_0, a_1, a_2).res
+        a_31 = quantum.NotOp(a_0).res
+        a_4 = quantum.CCNotOp(a_0, a_1, a_3).res
+        quantum.MeasureOp(a_4)
+        quantum.MeasureOp(a_31)
 
-# Read JSON file and fix last characters
-file_path = 'build/output.json'
-with open(file_path, 'r') as file:
-    data = file.read()
+    quantum.FuncOp("prova", main)
 
-pos = data.rfind("}")
-# Se trovi la parentesi graffa chiusa, taglia il contenuto dopo di essa
-if pos != -1:
-    data = data[:pos + 1]
-# Riscrivi il file senza il contenuto successivo alla parentesi graffa
-with open(file_path, 'w') as file:
-    file.write(data)
-
-json_data = JSON_to_DataClasses.read_json_file(file_path)
-
-# Output JSON file
-output_dir = 'test-outputs'
-output_path = 'test-outputs/json_ast.txt'
-os.makedirs(output_dir, exist_ok=True)
-with open(output_path, 'w') as file:
-    file.write(json_data)
-
-# Convert JSON to DataClasses
-root = JSON_to_DataClasses.json_to_ast(json_data)
-
-# Output DataClasses file
-output_path = 'test-outputs/dataclass_ast.txt'
-with open(output_path, 'w') as file:
-    formatted_ast = JSON_to_DataClasses.format_root(root)
-    file.write("\n".join(formatted_ast))
-
-# Generate IR
-ir_gen = IRGen()
-module = ir_gen.ir_gen_module(root)
-print("\nIR:\n")
 Printer().print_op(module)
-
-# Transformations
-print("\n\nTransformations:")
 
 while True:
 
