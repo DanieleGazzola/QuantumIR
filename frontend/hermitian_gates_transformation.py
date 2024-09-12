@@ -16,19 +16,25 @@ from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
 # if not we can safely use it to replace the current operation
 def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
 
+    my_effects = set[EffectInstance]()
     effects = set[EffectInstance]()
     next_op = from_op.next_op
+
+    my_effects = GetMemoryEffect.get_effects(from_op)
 
     # check on every operation until the end of the function, top to bottom
     while not next_op is to_op:
         effects = GetMemoryEffect.get_effects(next_op)
-        
         # il the op is an InitOp surely will not change the SSAValue 
         if not isinstance(next_op, InitOp):
             for effect in effects:
                 if effect.value == from_op.res:
+                    
                     return True
-            
+        
+            second_last_effect = list(effects)[-2]
+            if any([second_last_effect.value == effect.value for effect in my_effects]):
+                return True    
         next_op = next_op.next_op
 
     return False
