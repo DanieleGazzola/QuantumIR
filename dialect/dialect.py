@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import ClassVar, TypeVar
 
-from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType
+from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType,IntegerAttr
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
 from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def, traits_def
 from xdsl.traits import MemoryEffect, MemoryEffectKind, EffectInstance, OpTrait
+from xdsl.dialects import arith
 
 class GetMemoryEffect(MemoryEffect):
 
@@ -28,13 +29,13 @@ class InitOp(IRDLOperation):
         if isinstance(values, IntegerType):
             # Single IntegerType case
             result_types = [IntegerType(1)]
-            attributes = {"type": values}
+            attributes = {"type": values,"value": IntegerAttr(0,IntegerType(1))}   
         elif isinstance(values, VectorType):
             # Vector of IntegerType case
             element_type=values.get_element_type()
             size=values.get_shape()[0]
             result_types= [VectorType(element_type, [size,])]     
-            attributes = {"type": values}
+            attributes = {"type": values,"value": IntegerAttr(0,IntegerType(size))}
         else:
             raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
 
