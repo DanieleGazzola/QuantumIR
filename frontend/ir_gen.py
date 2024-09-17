@@ -42,9 +42,7 @@ from JSON_to_DataClasses import (
     NetType,
     Parameter,
     Port,
-    PrimitiveInstance,
     Root,
-    Variable
 )
 
 

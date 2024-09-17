@@ -1,17 +1,12 @@
-from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
+from xdsl.ir import Operation
 from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
-from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
-from xdsl.passes import ModulePass
-from xdsl.rewriter import Rewriter
-from xdsl.traits import EffectInstance, IsolatedFromAbove
+from xdsl.dialects.builtin import ModuleOp
 
-from dataclasses import dataclass
-
-from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
+from dialect.dialect import FuncOp, MeasureOp
 
                             ##### SUPPORT FUNCTIONS #####
 
-# check if the operation is dead
+# Check if the operation is not used in the following part of the program.
 def is_trivially_dead(op: Operation) -> bool:
 
     # these types of operations are never dead
@@ -21,7 +16,7 @@ def is_trivially_dead(op: Operation) -> bool:
     # if the result of the operation is never used then it is dead
     return not op.res.uses
 
-
+# Class to drive the removal of unused operations in the main program.
 class RemoveUnusedOperations(RewritePattern):
 
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):

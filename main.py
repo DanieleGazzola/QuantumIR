@@ -9,7 +9,7 @@ from frontend.remove_unused_op import RemoveUnusedOperations
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from xdsl.pattern_rewriter import PatternRewriteWalker
 
-# Main Program
+                    ############# MAIN PROGRAM #############
 
 # Read JSON file and fix last characters
 file_path = 'build/output.json'
