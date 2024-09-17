@@ -11,11 +11,11 @@ from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTION #####
 
-
 # check if the existing SSAValue will be changed in the future
 # if not we can safely use it to replace the current operation
 def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
-
+    
+    # we use effects in order to iterate trough operation arguments
     my_effects = set[EffectInstance]()
     effects = set[EffectInstance]()
     next_op = from_op.next_op
@@ -25,13 +25,12 @@ def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
     # check on every operation until the end of the function, top to bottom
     while not next_op is to_op:
         effects = GetMemoryEffect.get_effects(next_op)
-        # il the op is an InitOp surely will not change the SSAValue 
+        # if the operation is an InitOp surely it will not change the SSAValue 
         if not isinstance(next_op, InitOp):
             for effect in effects:
                 if effect.value == from_op.res:
-                    
                     return True
-        
+            # second_last effect is in all operation the  one that writes the SSAValue
             second_last_effect = list(effects)[-2]
             if any([second_last_effect.value == effect.value for effect in my_effects]):
                 return True    
@@ -41,7 +40,11 @@ def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
 
 
                             ##### CLASSES TO HELP CSE MANAGMENT #####
-        
+
+# OperationInfo is a class that contains the operation and some useful information about it.
+# It is used to compute the hash of the operations for the knownOps dictionary and to implement task-specific logic when two
+# operation are equal.
+# The hash is used by the dictionary KnownOps to check if two OperationInfo are equal.       
 @dataclass
 class OperationInfo:
 
@@ -69,7 +72,7 @@ class OperationInfo:
             operands += (self.op.control1,self.op.control2,)
         # if it is a quantum.not the target do not need to match. The only thing to match is the second target
         # with the firt result (checked in eq)
-        return hash(operands)
+        return operands
     
     # this function is used to check if two hashes match
     # computes the hash of the name and the operation operands.
@@ -81,16 +84,17 @@ class OperationInfo:
             )
         )
     
-    # other is the second operation matched, self is the first
-    # qui non ho messo nessun tipo di logica, ho notato che quando facciamo una get confronta automaticamente le chiavi usando
-    # hash. Di conseguenza lì già matcha solo le operazioni con lo stesso nome e gli stessi operandi di controllo ( e il loro numero).
-    # In questo eq ho semplicemente messo il confronto tra le due operazioni su target e result.
+    # This function is called when two opearation hashes are equal. Here we implement the logic to check if the two operations
+    # are valid candidate for CSE elimination.
+    # In the produced MLIR, other is the bottom operation matched, self is the top
     def __eq__(self, other: object):
         value = (self.name == other.name and  # same name
                 self.result_types == other.result_types and # same result types
                 other.op.target == self.op.res) # other target is my result
         return value
 
+# A dictionary used to store the known operations during the MLIR traversing.
+# OperationInfo is the key, Operation is the value.
 class KnownOps:
 
     _known_ops: dict[OperationInfo, Operation]
@@ -121,16 +125,18 @@ class KnownOps:
 
 
                             ##### CLASS TO MANAGE HGE TRANSFORMATIONS #####
-
+# This class drives the logic of the transformation. It has methods to traverse the MLIR, find candidates for the elimination and
+# simplify the MLIR.
 class HGEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
-    n = 0
+    
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
 
+    # commit the erasure of the operation
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
             self._rewriter.erase_op(op)
@@ -216,7 +222,8 @@ class HGEDriver:
                 self._simplify_region(thing)
 
                             ##### MAIN CLASSES TO INVOKE THE TRANSFORMATION #####
-
+                            
+# This class is used to apply the transformation to the MLIR in the main program
 class HermitianGatesElimination(ModulePass):
 
     def apply(self, op: ModuleOp) -> None:

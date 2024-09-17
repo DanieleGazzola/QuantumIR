@@ -6,14 +6,16 @@ from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType,IntegerAtt
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
 from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def, traits_def
 from xdsl.traits import MemoryEffect, MemoryEffectKind, EffectInstance, OpTrait
-from xdsl.dialects import arith
 
+
+# Class to get the memory effects of an operation
 class GetMemoryEffect(MemoryEffect):
 
     @classmethod
     def get_effects(cls, op: IRDLOperation) -> set[EffectInstance] | None:
         return op.traits
 
+# Operation to initialize a qubit (or a vector of them) to zero
 @irdl_op_definition
 class InitOp(IRDLOperation):
 
@@ -36,7 +38,7 @@ class InitOp(IRDLOperation):
             size=values.get_shape()[0]
             result_types= [VectorType(element_type, [size,])]     
             attributes = {"type": values,"value": IntegerAttr(0,IntegerType(size))}
-        else:
+        else: 
             raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
 
         super().__init__(result_types=result_types, attributes=attributes)
@@ -45,16 +47,8 @@ class InitOp(IRDLOperation):
     @staticmethod
     def from_value(value) -> InitOp:
         return InitOp(value)
-    
-    def verify(self):
-    # Ensure the result type matches the attribute type
-        if isinstance(self.values, IntegerType):
-            assert self.result_types[0] == IntegerType
-        elif isinstance(self.values, VectorType):
-            assert self.result_types[0] == VectorType(IntegerType, len(self.values))
-        else:
-            raise ValueError("Invalid attribute type")
 
+# Operation to apply the NOT gate to a qubit (or a vector of them)
 @irdl_op_definition
 class NotOp(IRDLOperation):
 
@@ -66,7 +60,7 @@ class NotOp(IRDLOperation):
     def __init__(self, target: SSAValue):
         if isinstance(target.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[target])
-        else:
+        else: # VectorType
             size=target.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
         self.traits = [EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
@@ -75,7 +69,8 @@ class NotOp(IRDLOperation):
     def from_value(value: SSAValue) -> NotOp:
         return NotOp(value)
     
-    
+# Operation to apply the CNOT gate to a qubit (or a vector of them)
+# the first qubit is the control one, the second is the target.
 @irdl_op_definition
 class CNotOp(IRDLOperation):
 
@@ -88,7 +83,7 @@ class CNotOp(IRDLOperation):
     def __init__(self, control: SSAValue, target: SSAValue):
         if isinstance(control.type, IntegerType) and isinstance(target.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[control, target])
-        else:
+        else: # VectorType
             size = control.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control, target])
         self.traits = [EffectInstance(MemoryEffectKind.READ, self.control), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
@@ -97,6 +92,8 @@ class CNotOp(IRDLOperation):
     def from_value(control: SSAValue, target: SSAValue) -> CNotOp:
         return CNotOp(control, target)
 
+# Operation to apply the CCNOT gate to a qubit (or a vector of them)
+# the first two qubits are the control ones, the third is the target.
 @irdl_op_definition
 class CCNotOp(IRDLOperation):
 
@@ -110,7 +107,7 @@ class CCNotOp(IRDLOperation):
     def __init__(self, control1: SSAValue, control2: SSAValue, target: SSAValue):
         if isinstance(control1.type, IntegerType) and isinstance(control2.type, IntegerType) and isinstance(target.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[control1, control2, target])
-        else:
+        else: # VectorType
             size = control1.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control1, control2, target])
         self.traits = [EffectInstance(MemoryEffectKind.READ, self.control1), EffectInstance(MemoryEffectKind.READ, self.control2), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
@@ -119,6 +116,8 @@ class CCNotOp(IRDLOperation):
     def from_value(control1: SSAValue, control2: SSAValue, target: SSAValue) -> CCNotOp:
         return CCNotOp(control1, control2, target)
 
+# Operation to measure a qubit (or a vector of them).
+# This operation is used at the end of the circuit on the output (qu)bits.
 @irdl_op_definition
 class MeasureOp(IRDLOperation):
 
@@ -130,7 +129,7 @@ class MeasureOp(IRDLOperation):
     def __init__(self, value: SSAValue):
         if isinstance(value.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[value])
-        else:
+        else: # VectorType
             size=value.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[value])
         self.traits = [EffectInstance(MemoryEffectKind.WRITE, self.value)]
@@ -139,6 +138,7 @@ class MeasureOp(IRDLOperation):
     def from_value(value: SSAValue) -> MeasureOp:
         return MeasureOp(value)
 
+# Operation to define a function
 @irdl_op_definition
 class FuncOp(IRDLOperation):
 

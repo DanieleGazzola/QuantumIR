@@ -1,5 +1,6 @@
 from xdsl.printer import Printer
-from frontend.ir_transform import RemoveUnusedOperations, CommonSubexpressionElimination
+from frontend.common_subexpr_elimination import CommonSubexpressionElimination
+from frontend.remove_unused_op import RemoveUnusedOperations
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp, FunctionType

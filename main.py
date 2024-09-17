@@ -4,7 +4,8 @@ import JSON_to_DataClasses
 from xdsl.printer import Printer
 from frontend.ir_gen import IRGen
 
-from frontend.ir_transform import RemoveUnusedOperations, CommonSubexpressionElimination
+from frontend.common_subexpr_elimination import CommonSubexpressionElimination
+from frontend.remove_unused_op import RemoveUnusedOperations
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from xdsl.pattern_rewriter import PatternRewriteWalker
 
@@ -16,10 +17,10 @@ with open(file_path, 'r') as file:
     data = file.read()
 
 pos = data.rfind("}")
-# Se trovi la parentesi graffa chiusa, taglia il contenuto dopo di essa
+# If you find last closed curly bracket remove everything after it
 if pos != -1:
     data = data[:pos + 1]
-# Riscrivi il file senza il contenuto successivo alla parentesi graffa
+# Rewrite the file
 with open(file_path, 'w') as file:
     file.write(data)
 
