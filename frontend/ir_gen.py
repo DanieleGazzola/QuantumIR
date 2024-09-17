@@ -49,7 +49,6 @@ from JSON_to_DataClasses import (
 class IRGenError(Exception):
     pass
 
-
 @dataclass
 class ScopedSymbolTable:
     "A mapping from variable names to SSAValues, append-only"

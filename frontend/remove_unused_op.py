@@ -4,8 +4,6 @@ from xdsl.dialects.builtin import ModuleOp
 
 from dialect.dialect import FuncOp, MeasureOp
 
-                            ##### SUPPORT FUNCTIONS #####
-
 # Check if the operation is not used in the following part of the program.
 def is_trivially_dead(op: Operation) -> bool:
 

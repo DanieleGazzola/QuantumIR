@@ -6,7 +6,7 @@ from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp, FunctionType
 from xdsl.builder import Builder
 from dialect import dialect as quantum
-                        #######TRANSFORMATIONS TEST PROGRAM########
+                        ####### TRANSFORMATIONS TEST PROGRAM ########
 @ModuleOp
 @Builder.implicit_region
 def module():

@@ -42,7 +42,7 @@ def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
                             ##### CLASSES TO HELP CSE MANAGMENT #####
 
 # OperationInfo is a class that contains the operation and some useful information about it.
-# It is used to compute the hash of the operations for the knownOps dictionary and to implement task-specific logic when two
+# It is used to compute the hash of the operations for the knownOps dictionary and to implement transformation-specific logic when two
 # operation are equal.
 # The hash is used by the dictionary KnownOps to check if two OperationInfo are equal.       
 @dataclass
@@ -86,14 +86,14 @@ class OperationInfo:
     
     # This function is called when two opearation hashes are equal. Here we implement the logic to check if the two operations
     # are valid candidate for CSE elimination.
-    # In the produced MLIR, other is the bottom operation matched, self is the top
+    # In the MLIR other is the bottom operation matched, self is the top one
     def __eq__(self, other: object):
         value = (self.name == other.name and  # same name
                 self.result_types == other.result_types and # same result types
                 other.op.target == self.op.res) # other target is my result
         return value
 
-# A dictionary used to store the known operations during the MLIR traversing.
+# A dictionary used to store the passed operations during the MLIR traversing.
 # OperationInfo is the key, Operation is the value.
 class KnownOps:
 
@@ -136,7 +136,7 @@ class HGEDriver:
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
 
-    # commit the erasure of the operation
+    
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
             self._rewriter.erase_op(op)
@@ -151,7 +151,7 @@ class HGEDriver:
         # replace all future uses of the current operation results with the existing one
         # !!! ORRIBLE SOLUTION WITH THE TUPLE else TypeError: OpResult not iterable
         for o, n in zip([op.results,], [existing.target,], strict=True):
-            if all(wasVisited(u) for u in o[0].uses):
+            if all(wasVisited(u) for u in o[0].uses): 
                 o[0].replace_by(n)
 
         # if there are no uses delete the operationS
@@ -221,8 +221,8 @@ class HGEDriver:
             case Region():
                 self._simplify_region(thing)
 
-                            ##### MAIN CLASSES TO INVOKE THE TRANSFORMATION #####
-                            
+                            ##### MAIN CLASS TO INVOKE THE TRANSFORMATION #####
+
 # This class is used to apply the transformation to the MLIR in the main program
 class HermitianGatesElimination(ModulePass):
 

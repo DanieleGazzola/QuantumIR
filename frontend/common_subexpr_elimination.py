@@ -4,14 +4,12 @@ from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
 from xdsl.rewriter import Rewriter
 from xdsl.traits import EffectInstance, IsolatedFromAbove
-
 from dataclasses import dataclass
-
 from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTIONS #####
 
-# check if the operation is dead
+# check if the operation is not used in the following part of the program.
 def is_trivially_dead(op: Operation) -> bool:
 
     # these types of operations are never dead
@@ -46,7 +44,11 @@ def has_other_modifications(from_op: Operation) -> bool:
 
 
                             ##### CLASSES TO HELP CSE MANAGMENT #####
-        
+   
+# OperationInfo is a class that contains the operation and some useful information about it.
+# It is used to compute the hash of the operations for the knownOps dictionary and to implement transformation-specific logic when two
+# operation are equal.
+# The hash is used by the dictionary KnownOps to check if two OperationInfo are equal.      
 @dataclass
 class OperationInfo:
 
@@ -97,20 +99,22 @@ class OperationInfo:
             else:
                 return None
 
-        return hash(all_operands)
+        return all_operands
 
     def __hash__(self):
         return hash(
             (
                 self.name,
-                hash(self.result_types),
+                self.result_types,
                 self.hash_operands()
             )
         )
 
     def __eq__(self, other: object):
         return hash(self) == hash(other)
-
+    
+# A dictionary used to store the passed operations during the MLIR traversing.
+# OperationInfo is the key, Operation is the value.
 class KnownOps:
 
     _known_ops: dict[OperationInfo, Operation]
@@ -235,7 +239,7 @@ class CSEDriver:
 
 
 
-                            ##### MAIN CLASSES TO INVOKE THE TRANSFORMATIONS #####
+                            ##### MAIN CLASS TO INVOKE THE TRANSFORMATION #####
 
 class CommonSubexpressionElimination(ModulePass):
 

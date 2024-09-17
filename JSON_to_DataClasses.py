@@ -2,6 +2,11 @@ import json
 from dataclasses import dataclass
 from typing import List, Optional, Union, Any, Dict
 
+#################################### DATACLASSES ############################################################################################################
+# This file contains the dataclasses that represent the AST of the JSON file and the logic to convert it.
+# Each dataclass corresponds to an AST element. 
+# We then work on the dataclass tree to build the MLIR.
+
 @dataclass
 class ASTNode:
     kind: str
@@ -270,7 +275,8 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
 
 ##################################################################################################################################################################
 
-def json_to_ast(json_data: str) -> Root:
+# function that takes as input a JSON string and returns a Root dataclass
+def json_to_dataclass(json_data: str) -> Root:
     data = json.loads(json_data)
     return from_dict(data)
 
@@ -281,7 +287,11 @@ def read_json_file(file_path: str) -> str:
         return file.read()
 
 ##################################################################################################################################################################
+# This function takes a Root dataclass and returns a formatted string representation of the AST
+def format_root(root: Root, indent: int = 0) -> str:
+    return format_ast(root, indent)
 
+# This recursive function takes an ASTNode and returns a formatted string representation of the AST
 def format_ast(ast: ASTNode, indent: int = 0) -> str:
     lines = []
     indent_str = " " * indent
@@ -375,5 +385,3 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
 
 ##################################################################################################################################################################
 
-def format_root(root: Root, indent: int = 0) -> str:
-    return format_ast(root, indent)
