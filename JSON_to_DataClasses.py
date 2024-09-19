@@ -67,8 +67,8 @@ class ContinuousAssign:
 class Conversion:
     kind: str
     type: str
-    operand: Union['IntegerLiteral', 'Conversion']
-    constant: str
+    operand: Union['IntegerLiteral', 'Conversion','NamedValue']
+    constant: Optional[str] = None
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -122,7 +122,7 @@ class Instance:
 @dataclass
 class InstanceBody:
     kind: str
-    members: List[Union['Port', 'Net', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'Parameter', 'Genvar', 'GenerateBlockArray']]
+    members: List[Union['Port', 'Net', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'Parameter', 'Genvar', 'GenerateBlockArray','ProceduralBlock']]
     definition: str
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -204,6 +204,30 @@ class Variable:
     name: Optional[str] = None
     addr: Optional[int] = None
 
+@dataclass
+class ProceduralBlock:
+    kind: str
+    body : 'Block'
+    procedureKind : str
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+@dataclass
+class Block:
+    kind: str
+    blockKind : str
+    body: List[Union['ExpressionStatement']]
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+@dataclass
+class ExpressionStatement:
+    kind: str
+    expr: List[Union['Assignment', 'BinaryOp', 'UnaryOp', 'NamedValue', 'EmptyArgument', 'Conversion']]
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+
 ##################################################################################################################################################################
 
 def from_dict(data: Dict[str, Any]) -> ASTNode:
@@ -232,7 +256,10 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
         elif kind == 'ContinuousAssign':
             return ContinuousAssign(assignment=from_dict(data['assignment']), **common_fields)
         elif kind == 'Conversion':
-            return Conversion(type=data['type'], operand=from_dict(data['operand']), constant=data['constant'], **common_fields)
+            if 'constant' in data:
+                return Conversion(type=data['type'], operand=from_dict(data['operand']), constant=data['constant'], **common_fields)
+            else:
+                return Conversion(type=data['type'], operand=from_dict(data['operand']), **common_fields)
         elif kind == 'ElementSelect':
             return ElementSelect(type=data['type'], value=from_dict(data['value']), selector=from_dict(data['selector']), **common_fields)
         elif kind == 'EmptyArgument':
@@ -269,6 +296,14 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
             return Root(members=from_dict(data['members']), **common_fields)
         elif kind == 'Variable':
             return Variable(type=data['type'], lifetime=data['lifetime'], **common_fields)
+        elif kind == 'ProceduralBlock':
+            return ProceduralBlock(body=from_dict(data['body']), procedureKind=data['procedureKind'], **common_fields)
+        elif kind == 'Block':
+            return Block(blockKind=data['blockKind'], body=from_dict(data['body']), **common_fields)
+        elif kind == 'ExpressionStatement':
+            return ExpressionStatement(expr=from_dict(data['expr']), **common_fields)
+        elif kind == "List":
+            return [from_dict(item) for item in data['list']]
         else:
             raise ValueError(f"Unknown kind: {kind}")
     return data
@@ -330,7 +365,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
         lines.append(f"{indent_str}{ast.kind} Name: {ast.name if hasattr(ast, 'name') else 'Unknown'}")
     elif hasattr(ast, 'kind'):
         lines.append(f"{indent_str}{ast.kind}")
-
     if isinstance(ast, Root):
         for member in ast.members:
             lines.extend(format_ast(member, indent + 2))
@@ -350,6 +384,7 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
     elif isinstance(ast, Parameter):
         lines.extend(format_ast(ast.initializer, indent + 2))
     elif isinstance(ast, Conversion):
+        lines.append(indent_str + "  Type: " + ast.type)
         lines.extend(format_ast(ast.operand, indent + 2))
     elif isinstance(ast, Assignment):
         lines.extend(format_ast(ast.left, indent + 2))
@@ -378,6 +413,17 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
     elif isinstance(ast, Connection):
         lines.append(indent_str + f"  Port: {ast.port}")
         lines.extend(format_ast(ast.expr, indent + 2))
+    elif isinstance(ast, ProceduralBlock):
+        lines.append(indent_str + f"  ProcedureKind: {ast.procedureKind}")
+        lines.extend(format_ast(ast.body, indent + 2))
+    elif isinstance(ast, Block):
+        lines.append(indent_str + f"  BlockKind: {ast.blockKind}")
+        lines.extend(format_ast(ast.body, indent + 2))
+    elif isinstance(ast, ExpressionStatement):
+        lines.extend(format_ast(ast.expr, indent + 2))
+    elif isinstance(ast, list):
+        for item in ast:
+            lines.extend(format_ast(item, indent))
     else:
         append_info(" ", ast)
     

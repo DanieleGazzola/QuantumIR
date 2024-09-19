@@ -24,6 +24,7 @@ from JSON_to_DataClasses import (
     ASTNode,
     Assignment,
     BinaryOp,
+    ProceduralBlock,
     UnaryOp,
     CompilationUnit,
     Connection,
@@ -106,6 +107,7 @@ class IRGen:
 
         self.symbol_table = ScopedSymbolTable()
 
+        # in arguments
         proto_args = [member for member in body.members if isinstance(member, Port) and member.direction == "In"]
         
         arg_types=[]
@@ -132,12 +134,12 @@ class IRGen:
         for name, value in zip(proto_args, block.args):
             self.declare(name.internalSymbol, value)
 
+        # create function body computations
         for member in body.members:
-            if isinstance(member, ContinuousAssign):
                 self.ir_gen_expr(member)
 
         proto_return = [member for member in body.members if isinstance(member, Port) and member.direction == "Out"]
-
+    
         for var in proto_return:
             self.builder.insert(MeasureOp.from_value(self.symbol_table[var.internalSymbol]))
 
@@ -150,14 +152,25 @@ class IRGen:
 
     # act as a switch for the different types of expressions
     def ir_gen_expr(self, expr: ASTNode) -> SSAValue:
-
+        
+        # the two ways one can write combinatorial assignments in SystemVerilog
         if isinstance(expr, ContinuousAssign):
-            return self.ir_gen_assign(expr)
+            return self.ir_gen_assign(expr.assignment)
+        if isinstance(expr, ProceduralBlock):
+            return self.ir_gen_procedural_block(expr)
+
+    def ir_gen_procedural_block(self, expr: ProceduralBlock) -> SSAValue:
+            # extract the block and the statement containing the operations
+            block = expr.body
+            statement = block.body
+            if isinstance(statement, list):
+                for s in statement:
+                    self.ir_gen_assign(s.expr)
+            else:
+                self.ir_gen_assign(statement.expr)
 
     # act as a switch for the different types of assignements
-    def ir_gen_assign(self, expr: ContinuousAssign) -> SSAValue:
-        
-        assignment = expr.assignment
+    def ir_gen_assign(self, assignment: Assignment) -> SSAValue:
 
         if isinstance(assignment.right, Conversion): # initialization of a variable
             return self.ir_gen_init(assignment)
@@ -220,7 +233,6 @@ class IRGen:
         return final_op.res
 
     def ir_gen_bin(self, expr: BinaryOp) -> IRDLOperation:
-
         if expr.op == "BinaryXor":
 
             op = self.ir_gen_xor(expr)
@@ -235,6 +247,8 @@ class IRGen:
 
             op = self.ir_gen_or(expr)
             return op
+        
+        raise IRGenError(f"Unknown binary operation {expr.op}")
 
     def ir_gen_xor(self, expr: BinaryOp) -> IRDLOperation:
 
@@ -269,7 +283,7 @@ class IRGen:
         elif isinstance(expr.right, BinaryOp):
             right = self.ir_gen_bin(expr.right)
             right = right.res
-
+        
         cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[temp_symbol]))
 
         # auxiliary SSAValue

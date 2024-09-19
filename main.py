@@ -13,6 +13,7 @@ from xdsl.dialects.builtin import ModuleOp
                     ############# MAIN PROGRAM #############
                     
 class QuantumIR():
+    
     json_path : str = 'build/output.json'
     dataclass_output: str = 'test-outputs/dataclass_ast.txt'
     output_dir : str = 'test-outputs'
@@ -29,6 +30,7 @@ class QuantumIR():
             data = file.read()
 
         pos = data.rfind("}")
+        
         # If you find last closed curly bracket remove everything after it
         if pos != -1:
             data = data[:pos + 1]
@@ -41,7 +43,6 @@ class QuantumIR():
         # Convert JSON to DataClasses and write it to a file
         self.root = JSON_to_DataClasses.json_to_dataclass(json_data)
 
-        self.dataclass_output = 'test-outputs/dataclass_ast.txt'
         os.makedirs(self.output_dir, exist_ok=True)
         with open(self.dataclass_output, 'w') as file:
             formatted_ast = JSON_to_DataClasses.format_root(self.root)
