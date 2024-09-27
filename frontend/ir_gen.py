@@ -191,7 +191,7 @@ class IRGen:
     
     # initialization of a 0 qubit
     # assign var = value;
-    def ir_gen_init(self, expr: Assignment) -> SSAValue:
+    def ir_gen_init(self,) -> SSAValue:
 
         init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
 
@@ -270,26 +270,6 @@ class IRGen:
 
     def ir_gen_xor(self, expr: BinaryOp) -> IRDLOperation:
 
-        # initialize a new qubit or a new qubit register
-        if "[" in expr.type and "]" in expr.type:
-                match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
-                if match:
-                    # Extract the keyword, high index, and low index
-                    keyword = match.group(1)  # The keyword part (e.g., "logic", "wire", "reg")
-                    high_index = int(match.group(2))
-                    low_index = int(match.group(3))
-                    size = high_index - low_index + 1
-                element_type= IntegerType(1)
-                init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
-        else:
-            init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
-
-          
-        init_op.res._name="q"+str(self.n_qubit)+"_0"
-        self.n_qubit += 1
-        
-        self.declare(init_op.res._name, init_op.res)
-
         if isinstance(expr.left, NamedValue):
             left = self.symbol_table[expr.left.symbol]
             # if the qubit has been negated, and is searching for the original qubit
@@ -324,16 +304,52 @@ class IRGen:
             right = self.ir_gen_unary(expr.right)
             right = right.res
         
-        cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[init_op.res._name]))
+        # controllo per xor consecutivi da fare in place.
+        # possibile solo se right e left non sono contemporaneamente named value. In quel caso allochiamo normalmente.
+        check1 = False
+        check2 = False
+        if isinstance(expr.right,NamedValue) or expr.right.op == "BinaryXor" or expr.right.op == "BitWiseNot":
+            check1 = True
+        if isinstance(expr.left,NamedValue) or expr.left.op == "BinaryXor" or expr.left.op == "BitWiseNot":
+            check2 = True
+        if isinstance(expr.left,NamedValue) and isinstance(expr.right,NamedValue):
+            check1 = False
+            check2 = False
 
-        # leggibilità ciaone
-        cnot_op_1.res._name = init_op.res._name[:-1]+str(int(init_op.res._name[-1]) + 1)
+        # se non è possibile alloca un nuovo qubit
+        if not(check1 and check2):
+            # initialize a new qubit or a new qubit register
+            if "[" in expr.type and "]" in expr.type:
+                    match = re.match(r"(\w+)\[(\d+):(\d+)\]", expr.type) # regex to match the vector type and size
+                    if match:
+                        # Extract the keyword, high index, and low index
+                        high_index = int(match.group(2))
+                        low_index = int(match.group(3))
+                        size = high_index - low_index + 1
+                    element_type= IntegerType(1)
+                    init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,])))
+            else:
+                init_op = self.builder.insert(InitOp.from_value(IntegerType(1)))
 
-        self.declare(cnot_op_1.res._name, cnot_op_1.res)
+            
+            init_op.res._name="q"+str(self.n_qubit)+"_0"
+            self.n_qubit += 1
+            
+            self.declare(init_op.res._name, init_op.res)
         
-        cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[cnot_op_1.res._name])) 
+            cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[init_op.res._name]))
 
-        cnot_op_2.res._name = cnot_op_1.res._name[:-1]+str(int(cnot_op_1.res._name[-1]) + 1)
+            # leggibilità ciaone
+            cnot_op_1.res._name = init_op.res._name[:-1]+str(int(init_op.res._name[-1]) + 1)
+            name = cnot_op_1.res._name
+
+            self.declare(cnot_op_1.res._name, cnot_op_1.res)
+        else:
+            name = left._name
+
+        cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])) 
+
+        cnot_op_2.res._name = name[:-1]+str(int(name[-1]) + 1)
 
         self.declare(cnot_op_2.res._name, cnot_op_2.res)
 
