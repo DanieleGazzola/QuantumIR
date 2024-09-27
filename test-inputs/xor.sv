@@ -1,8 +1,9 @@
 module FullAdder(input logic a, b, cin,
                  output logic sum, cout);
 
-    assign sum = a ^ b ^ cin;
+    logic temp1;
 
-    assign cout = (a & b) | (b & cin) | (a & cin);
+    assign sum = a ^ ~b;
+    assign cout = (a | b);
     
 endmodule
