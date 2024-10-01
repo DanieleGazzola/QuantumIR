@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from typing import NoReturn
 
 from xdsl.builder import Builder
+from xdsl.dialects import builtin
 from xdsl.dialects.builtin import ModuleOp, IntegerType, VectorType
 from xdsl.ir import Block, Region, SSAValue
-from xdsl.dialects import builtin
 from xdsl.irdl import IRDLOperation
 
 import re
@@ -27,21 +27,11 @@ from JSON_to_DataClasses import (
     ProceduralBlock,
     UnaryOp,
     CompilationUnit,
-    Connection,
     ContinuousAssign,
     Conversion,
-    ElementSelect,
-    EmptyArgument,
-    GenerateBlock,
-    GenerateBlockArray,
-    Genvar,
     Instance,
     InstanceBody,
-    IntegerLiteral,
     NamedValue,
-    Net,
-    NetType,
-    Parameter,
     Port,
     Root,
 )

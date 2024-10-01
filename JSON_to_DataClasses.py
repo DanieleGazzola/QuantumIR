@@ -17,8 +17,8 @@ class ASTNode:
 class Assignment:
     kind: str
     type: str
-    left: Union['NamedValue', 'ElementSelect']
-    right: Union['NamedValue', 'EmptyArgument', 'BinaryOp', 'Conversion']
+    left: 'NamedValue'
+    right: Union['NamedValue', 'BinaryOp', 'Conversion']
     isNonBlocking: bool
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -28,8 +28,8 @@ class BinaryOp:
     kind: str
     type: str
     op: str
-    left: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
-    right: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
+    left: Union['NamedValue', 'BinaryOp']
+    right: Union['NamedValue', 'BinaryOp']
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -38,21 +38,13 @@ class UnaryOp:
     kind: str
     type: str
     op: str
-    operand: Union['NamedValue', 'EmptyArgument', 'BinaryOp']
+    operand: Union['NamedValue', 'BinaryOp']
     name: Optional[str] = None
     addr: Optional[int] = None
 
 @dataclass
 class CompilationUnit:
     kind: str
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class Connection:
-    kind: str
-    port: str
-    expr: 'ElementSelect'
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -67,47 +59,8 @@ class ContinuousAssign:
 class Conversion:
     kind: str
     type: str
-    operand: Union['IntegerLiteral', 'Conversion','NamedValue']
+    operand: Union['Conversion','NamedValue']
     constant: Optional[str] = None
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class ElementSelect:
-    kind: str
-    type: str
-    value: 'NamedValue'
-    selector: 'IntegerLiteral'
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class EmptyArgument:
-    kind: str
-    type: str
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class GenerateBlock:
-    kind: str
-    members: List[Union['Parameter', 'Instance']]
-    constructIndex: int
-    isUninstantiated: bool
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class GenerateBlockArray:
-    kind: str
-    members: List['GenerateBlock']
-    constructIndex: int
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class Genvar:
-    kind: str
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -115,24 +68,14 @@ class Genvar:
 class Instance:
     kind: str
     body: 'InstanceBody'
-    connections: List['Connection']
     name: Optional[str] = None
     addr: Optional[int] = None
 
 @dataclass
 class InstanceBody:
     kind: str
-    members: List[Union['Port', 'Net', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'Parameter', 'Genvar', 'GenerateBlockArray','ProceduralBlock']]
+    members: List[Union['Port', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'ProceduralBlock']]
     definition: str
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class IntegerLiteral:
-    kind: str
-    type: str
-    value: str
-    constant: str
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -142,33 +85,6 @@ class NamedValue:
     type: str
     symbol: str
     constant: Optional[str] = None
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class Net:
-    kind: str
-    type: str
-    netType: 'NetType'
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class NetType:
-    kind: str
-    type: str
-    name: Optional[str] = None
-    addr: Optional[int] = None
-
-@dataclass
-class Parameter:
-    kind: str
-    type: str
-    value: int
-    isLocal: bool
-    isPort: bool
-    isBody: bool
-    initializer: Optional['Conversion'] = None
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -223,7 +139,7 @@ class Block:
 @dataclass
 class ExpressionStatement:
     kind: str
-    expr: List[Union['Assignment', 'BinaryOp', 'UnaryOp', 'NamedValue', 'EmptyArgument', 'Conversion']]
+    expr: List[Union['Assignment', 'BinaryOp', 'UnaryOp', 'NamedValue', 'Conversion']]
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -236,7 +152,7 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
         return [from_dict(item) for item in data]
 
     if isinstance(data, dict):
-        kind = data.get('kind', 'Connection') # Default kind is Connection because is the only one without it
+        kind = data.get('kind', None)
         common_fields = {
             'name': data.get('name'),
             'kind': kind,
@@ -251,8 +167,6 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
             return UnaryOp(type=data['type'], op=data['op'], operand=from_dict(data['operand']), **common_fields)
         elif kind == 'CompilationUnit':
             return CompilationUnit(**common_fields)
-        elif kind == 'Connection':
-            return Connection(port=data['port'], expr=from_dict(data['expr']), **common_fields)
         elif kind == 'ContinuousAssign':
             return ContinuousAssign(assignment=from_dict(data['assignment']), **common_fields)
         elif kind == 'Conversion':
@@ -260,34 +174,12 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
                 return Conversion(type=data['type'], operand=from_dict(data['operand']), constant=data['constant'], **common_fields)
             else:
                 return Conversion(type=data['type'], operand=from_dict(data['operand']), **common_fields)
-        elif kind == 'ElementSelect':
-            return ElementSelect(type=data['type'], value=from_dict(data['value']), selector=from_dict(data['selector']), **common_fields)
-        elif kind == 'EmptyArgument':
-            return EmptyArgument(type=data['type'], **common_fields)
-        elif kind == 'GenerateBlock':
-            return GenerateBlock(members=from_dict(data['members']), constructIndex=data['constructIndex'], isUninstantiated=data['isUninstantiated'], **common_fields)
-        elif kind == 'GenerateBlockArray':
-            return GenerateBlockArray(members=from_dict(data['members']), constructIndex=data['constructIndex'], **common_fields)
-        elif kind == 'Genvar':
-            return Genvar(**common_fields)
         elif kind == 'Instance':
-            return Instance(body=from_dict(data['body']), connections=from_dict(data['connections']), **common_fields)
+            return Instance(body=from_dict(data['body']), **common_fields)
         elif kind == 'InstanceBody':
             return InstanceBody(members=from_dict(data['members']), definition=data['definition'], **common_fields)
-        elif kind == 'IntegerLiteral':
-            return IntegerLiteral(type=data['type'], value=data['value'], constant=data['constant'], **common_fields)
         elif kind == 'NamedValue':
             return NamedValue(type=data['type'], symbol=data['symbol'], constant=data.get('constant', None), **common_fields)
-        elif kind == 'Net':
-            return Net(type=data['type'], netType=from_dict(data['netType']), **common_fields)
-        elif kind == 'NetType':
-            return NetType(kind=data['kind'], name=data['name'], addr=data['addr'], type=data['type'])
-        elif kind == 'Parameter':
-            if 'initializer' in data:
-                initializer = from_dict(data['initializer'])
-            else:
-                initializer = None
-            return Parameter(type=data['type'], initializer=initializer, value=data['value'], isLocal=data['isLocal'], isPort=data['isPort'], isBody=data['isBody'], **common_fields)
         elif kind == 'Port':
             return Port(type=data['type'], direction=data['direction'], internalSymbol=data['internalSymbol'], **common_fields)
         elif kind == 'PrimitiveInstance':
@@ -351,17 +243,12 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
                     elif isinstance(obj.selector, UnaryOp):
                         lines.append(f"{indent_str}{prefix} Selector:")
                         lines.extend(format_ast(obj.selector, indent + 4))
-                    elif isinstance(obj.selector, IntegerLiteral):
-                        lines.append(f"{indent_str}{prefix} Selector:")
-                        lines.extend(format_ast(obj.selector, indent + 4))
                 else:
                     lines.append(f"{indent_str}{prefix} Value: {obj.value}")
             elif hasattr(obj, 'constant') and obj.constant:
                 lines.append(f"{indent_str}{prefix} Constant: {obj.constant}")
 
     if isinstance(ast, InstanceBody):
-        lines.append(f"{indent_str}{ast.kind} Name: {ast.name if hasattr(ast, 'name') else 'Unknown'}")
-    elif isinstance(ast, Parameter):
         lines.append(f"{indent_str}{ast.kind} Name: {ast.name if hasattr(ast, 'name') else 'Unknown'}")
     elif hasattr(ast, 'kind'):
         lines.append(f"{indent_str}{ast.kind}")
@@ -370,9 +257,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
             lines.extend(format_ast(member, indent + 2))
     elif isinstance(ast, Instance):
         lines.extend(format_ast(ast.body, indent + 2))
-        lines.append(indent_str + "Connections:")
-        for connection in ast.connections:
-            lines.extend(format_ast(connection, indent + 2))
     elif isinstance(ast, InstanceBody):
         for member in ast.members:
             lines.extend(format_ast(member, indent + 2))
@@ -381,8 +265,6 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
             lines.extend(format_ast(port, indent + 2))
     elif isinstance(ast, ContinuousAssign):
         lines.extend(format_ast(ast.assignment, indent + 2))
-    elif isinstance(ast, Parameter):
-        lines.extend(format_ast(ast.initializer, indent + 2))
     elif isinstance(ast, Conversion):
         lines.append(indent_str + "  Type: " + ast.type)
         lines.extend(format_ast(ast.operand, indent + 2))
@@ -399,20 +281,9 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
         lines.append(indent_str + "    Operator: " + ast.op)
         lines.append(indent_str + "    Operand:")
         lines.extend(format_ast(ast.operand, indent + 4))
-    elif isinstance(ast, EmptyArgument):
-        lines.append(indent_str + "  Empty Argument")
     elif isinstance(ast, Port):
         direction = ast.direction if hasattr(ast, 'direction') else "Unknown"
         lines.append(indent_str + f"  Port: {ast.name} Direction: {direction}")
-    elif isinstance(ast, GenerateBlockArray):
-        for member in ast.members:
-            lines.extend(format_ast(member, indent + 2))
-    elif isinstance(ast, GenerateBlock):
-        for member in ast.members:
-            lines.extend(format_ast(member, indent + 2))
-    elif isinstance(ast, Connection):
-        lines.append(indent_str + f"  Port: {ast.port}")
-        lines.extend(format_ast(ast.expr, indent + 2))
     elif isinstance(ast, ProceduralBlock):
         lines.append(indent_str + f"  ProcedureKind: {ast.procedureKind}")
         lines.extend(format_ast(ast.body, indent + 2))
