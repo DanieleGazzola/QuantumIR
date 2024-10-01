@@ -23,10 +23,7 @@ def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
         if not isinstance(next_op, InitOp):
             for operand in next_op.operands:
                 if operand._name == from_op.res._name:
-                    return True
-            # second_last effect is in all operation the one that writes the SSAValue
-            if any([next_op.target._name == operand._name for operand in from_op.operands]):
-                return True    
+                    return True  
         next_op = next_op.next_op
 
     return False
@@ -43,6 +40,8 @@ class OperationInfo:
 
     op: Operation
 
+    hash: int = 0
+
     @property
     def name(self):
         return self.op.name
@@ -55,36 +54,17 @@ class OperationInfo:
     def operands(self):
         return self.op.operands._op._operands
     
-    # hash the operands of the operation
-    # in order for two operation to match they must have the same identical control qubits.
-    def hash_operands(self):
-        operands = tuple()
-        if(self.op.name =="quantum.cnot"):
-            operands += (self.op.control,)
-        elif(self.op.name =="quantum.ccnot"):
-            operands += (self.op.control1,self.op.control2,)
-        # if it is a quantum.not the target do not need to match. The only thing to match is the second target
-        # with the firt result (checked in eq)
-        return operands
-    
     # this function is used to check if two hashes match
     # computes the hash of the name and the operation operands.
     def __hash__(self):
-        return hash(
-            (
-                self.name,
-                self.hash_operands(),
-            )
-        )
+        self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name[1]))
+        return self.hash
     
     # This function is called when two opearation hashes are equal. Here we implement the logic to check if the two operations
     # are valid candidate for CSE elimination.
     # In the MLIR other is the bottom operation matched, self is the top one
     def __eq__(self, other: object):
-        value = (self.name == other.name and  # same name
-                self.result_types == other.result_types and # same result types
-                other.op.target == self.op.res) # other target is my result
-        return value
+        return self.hash == other.hash
 
 # A dictionary used to store the passed operations during the MLIR traversing.
 # OperationInfo is the key, Operation is the value.
@@ -114,8 +94,6 @@ class KnownOps:
 
     def pop(self, k: Operation):
         return self._known_ops.pop(OperationInfo(k))
-
-
 
                             ##### CLASS TO MANAGE HGE TRANSFORMATIONS #####
 # This class drives the logic of the transformation. It has methods to traverse the MLIR, find candidates for the elimination and

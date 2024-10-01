@@ -92,7 +92,7 @@ class IRGen:
         self.symbol_table[var] = value
         return True
     
-    def delete(self,var:str) -> bool:
+    def delete(self, var: str) -> bool:
         assert self.symbol_table is not None
         if var in self.symbol_table:
             self.symbol_table.table.pop(var)
@@ -231,7 +231,7 @@ class IRGen:
             operand = self.ir_gen_bin(expr.operand)
             operand = operand.res
 
-
+        self.delete(expr.operand.symbol)
         not_op = self.builder.insert(NotOp.from_value(operand))
 
         not_op.res._name = operand._name[:-1] + str(int(operand._name[-1]) + 1)
@@ -398,7 +398,7 @@ class IRGen:
             right = self.symbol_table[expr.right.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(right._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
+            if int(right._name[-1])%2 != 0 and int(right._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right))
                 right_new.res._name = right._name[:-1]+str(int(right._name[-1])+1)
@@ -451,55 +451,77 @@ class IRGen:
                 left_new.res._name = left._name[:-1]+str(int(left._name[-1])+1)
                 self.declare(expr.left.symbol, left_new.res)
                 left = left_new.res
-        elif isinstance(expr.left, BinaryOp):
-            left = self.ir_gen_bin(expr.left)
-            left = left.res
-        elif isinstance(expr.left, UnaryOp):
-            left = self.ir_gen_unary(expr.left)
-            left = left.res
+            self.delete(expr.left.symbol)
+            not_op_1 = self.builder.insert(NotOp.from_value(left))
+            not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+            left_name = expr.left.symbol
+            self.declare(expr.left.symbol, not_op_1.res)
+        else:
+            if isinstance(expr.left, BinaryOp):
+                left = self.ir_gen_bin(expr.left)
+                left = left.res
+            elif isinstance(expr.left, UnaryOp):
+                left = self.ir_gen_unary(expr.left)
+                left = left.res
+            not_op_1 = self.builder.insert(NotOp.from_value(left))
+            not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+            left_name = not_op_1.res._name 
+            self.declare(not_op_1.res._name, not_op_1.res)
 
 
         if isinstance(expr.right, NamedValue):
             right = self.symbol_table[expr.right.symbol]
             # if the qubit has been negated, and is searching for the original qubit
-            # we negate it again
+            # we negate it again.symbol)
             if int(right._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right))
                 right_new.res._name = right._name[:-1]+str(int(right._name[-1])+1)
                 self.declare(expr.right.symbol, right_new.res)
-                right = right_new.res
-        elif isinstance(expr.right, BinaryOp):
-            right = self.ir_gen_bin(expr.right)
-            right = right.res
-        elif isinstance(expr.right, UnaryOp):
-            right = self.ir_gen_unary(expr.right)
-            right = right.res
-        
-        not_op_1 = self.builder.insert(NotOp.from_value(left))
-        not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+                right = right_new.res                
+            self.delete(expr.right.symbol)
+            not_op_2 = self.builder.insert(NotOp.from_value(right))
+            not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
+            right_name = expr.right.symbol
+            self.declare(expr.right.symbol, not_op_2.res)
+        else:
+            if isinstance(expr.right, BinaryOp):
+                right = self.ir_gen_bin(expr.right)
+                right = right.res
+            elif isinstance(expr.right, UnaryOp):
+                right = self.ir_gen_unary(expr.right)
+                right = right.res
+            not_op_2 = self.builder.insert(NotOp.from_value(right))
+            not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
+            right_name = not_op_2.res._name
+            self.declare(not_op_2.res._name, not_op_2.res)
 
-        self.declare(not_op_1.res._name, not_op_1.res)
-
-        not_op_2 = self.builder.insert(NotOp.from_value(right))
-        not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
-
-        self.declare(not_op_2.res._name, not_op_2.res)
-
-        ccnot_op = self.builder.insert(CCNotOp.from_value(self.symbol_table[not_op_1.res._name], self.symbol_table[not_op_2.res._name], self.symbol_table[init_op.res._name]))
+        ccnot_op = self.builder.insert(CCNotOp.from_value(self.symbol_table[left_name], self.symbol_table[right_name], self.symbol_table[init_op.res._name]))
         ccnot_op.res._name = init_op.res._name[:-1]+str(int(init_op.res._name[-1]) + 1)
 
         self.declare(ccnot_op.res._name, ccnot_op.res)
+        
+        if isinstance(expr.left, NamedValue):
+            not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[left_name]))
+            not_op_3.res._name = not_op_1.res._name[:-1]+str(int(not_op_1.res._name[-1]) + 1)
+            self.delete(left_name)
+            self.declare(left_name, not_op_3.res)
+        else:
+            not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[not_op_1.res._name]))
+            not_op_3.res._name = not_op_1.res._name[:-1]+str(int(not_op_1.res._name[-1]) + 1)
 
-        not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[not_op_1.res._name]))
-        not_op_3.res._name = not_op_1.res._name[:-1]+str(int(not_op_1.res._name[-1]) + 1)
+            self.declare(not_op_3.res._name, not_op_3.res)
 
-        self.declare(not_op_3.res._name, not_op_3.res)
+        if isinstance(expr.right, NamedValue):
+            not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[right_name]))
+            not_op_4.res._name = not_op_2.res._name[:-1]+str(int(not_op_2.res._name[-1]) + 1)
+            self.delete(right_name)
+            self.declare(right_name, not_op_4.res)
+        else:
+            not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[not_op_2.res._name]))
+            not_op_4.res._name = not_op_2.res._name[:-1]+str(int(not_op_2.res._name[-1]) + 1)
 
-        not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[not_op_2.res._name]))
-        not_op_4.res._name = not_op_2.res._name[:-1]+str(int(not_op_2.res._name[-1]) + 1)
-
-        self.declare(not_op_4.res._name, not_op_4.res)
+            self.declare(not_op_4.res._name, not_op_4.res)
 
         not_op_5 = self.builder.insert(NotOp.from_value(self.symbol_table[ccnot_op.res._name]))
         not_op_5.res._name = ccnot_op.res._name[:-1]+str(int(ccnot_op.res._name[-1]) + 1)
