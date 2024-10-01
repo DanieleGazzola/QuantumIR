@@ -15,11 +15,38 @@ def has_other_modifications(from_op: Operation) -> bool:
     next_op = from_op.next_op
 
     # check on every operation until the end of the function
-    while not isinstance(next_op, MeasureOp):
+    while next_op != None:
         
         # il the op is an InitOp surely will not change the SSAValue 
         if not isinstance(next_op, InitOp):
             if next_op.target == from_op.res:
+                return True
+            
+        next_op = next_op.next_op
+
+    return False
+
+def has_read_after_write(op: Operation, from_op: Operation) -> bool:
+
+    next_op = op.next_op
+
+    while next_op != None:
+        if not isinstance(next_op, InitOp):
+            if next_op.target == op.res:
+                break
+        next_op = next_op.next_op
+    
+    if next_op == None:
+        return False
+    
+    next_op = next_op.next_op
+
+    # check on every operation until the end of the function
+    while next_op != None:
+        
+        # il the op is an InitOp surely will not change the SSAValue 
+        if not isinstance(next_op, InitOp):
+            if any(attr == from_op.res for attr in next_op.operands):
                 return True
             
         next_op = next_op.next_op
@@ -154,8 +181,19 @@ class CSEDriver:
         for o, n in zip(op.results, existing.results, strict=True):
             if all(wasVisited(u) for u in o.uses):
                 o.replace_by(n)
+        
+        # remap the qubit
+        next_op = op.next_op
 
-        # if there are no uses delete the operationS
+        while next_op != None:
+            if next_op.res._name[1] == op.res._name[1]:
+                next_op.res._name = existing.res._name[:-1] + next_op.res._name[-1]
+            for attr in next_op.operands:
+                if attr._name[1] == op.results[0]._name[1]:
+                    attr._name[1] = existing.results[0]._name[:-1] + next_op.results[0]._name[-1]
+            next_op = next_op.next_op
+
+        # if there are no uses delete the operation
         if all(not r.uses for r in op.results):
             self._commit_erasure(op)
 
@@ -165,13 +203,13 @@ class CSEDriver:
         # never simplify these types of operations
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
-
+    
         # check if the operation is already known
         if existing := self._known_ops.get(op):
             # if the existing op will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing):
-                self._replace_and_delete(op, existing)
-                return
+            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
+                    self._replace_and_delete(op, existing)
+                    return
         
         # if the operation is not known we add it to the known operations
         self._known_ops[op] = op

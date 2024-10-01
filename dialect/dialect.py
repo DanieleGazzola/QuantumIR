@@ -106,19 +106,19 @@ class CCNotOp(IRDLOperation):
 class MeasureOp(IRDLOperation):
 
     name = "quantum.measure"
-    value: Operand = operand_def(IntegerType(1))
+    target: Operand = operand_def(IntegerType(1))
     res: OpResult = result_def()
 
-    def __init__(self, value: SSAValue):
-        if isinstance(value.type, IntegerType):
-            super().__init__(result_types=[IntegerType(1)], operands=[value])
+    def __init__(self, target: SSAValue):
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
         else: # VectorType
-            size=value.type.get_shape()[0]
-            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[value])
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
 
     @staticmethod
-    def from_value(value: SSAValue) -> MeasureOp:
-        return MeasureOp(value)
+    def from_value(target: SSAValue) -> MeasureOp:
+        return MeasureOp(target)
 
 # Operation to define a function
 @irdl_op_definition
