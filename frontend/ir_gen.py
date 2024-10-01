@@ -77,6 +77,7 @@ class IRGen:
     symbol_table: ScopedSymbolTable | None = None
 
     n_qubit: int = 0
+    n_args: int = 0
     
     def __init__(self):
 
@@ -137,6 +138,7 @@ class IRGen:
 
         block = Block(arg_types=arg_types)
         self.builder = Builder.at_end(block)
+        self.n_args = len(block.args)
 
         for name, value in zip(proto_args, block.args):
             value._name = "q"+str(self.n_qubit)+"_0"
@@ -274,7 +276,7 @@ class IRGen:
             left = self.symbol_table[expr.left.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(left._name[-1])%2 != 0:
+            if int(left._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.left.symbol)
                 left_new = self.builder.insert(NotOp.from_value(left))
                 left_new.res._name = left._name[:-1]+str(int(left._name[-1])+1)
@@ -291,7 +293,7 @@ class IRGen:
             right = self.symbol_table[expr.right.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(right._name[-1])%2 != 0:
+            if int(right._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right))
                 right_new.res._name = right._name[:-1]+str(int(right._name[-1])+1)
@@ -379,7 +381,7 @@ class IRGen:
             left = self.symbol_table[expr.left.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(left._name[-1])%2 != 0:
+            if int(left._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.left.symbol)
                 left_new = self.builder.insert(NotOp.from_value(left))
                 left_new.res._name = left._name[:-1]+str(int(left._name[-1])+1)
@@ -396,7 +398,7 @@ class IRGen:
             right = self.symbol_table[expr.right.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(right._name[-1])%2 != 0:
+            if int(right._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right))
                 right_new.res._name = right._name[:-1]+str(int(right._name[-1])+1)
@@ -443,7 +445,7 @@ class IRGen:
             left = self.symbol_table[expr.left.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(left._name[-1])%2 != 0:
+            if int(left._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.left.symbol)
                 left_new = self.builder.insert(NotOp.from_value(left))
                 left_new.res._name = left._name[:-1]+str(int(left._name[-1])+1)
@@ -461,7 +463,7 @@ class IRGen:
             right = self.symbol_table[expr.right.symbol]
             # if the qubit has been negated, and is searching for the original qubit
             # we negate it again
-            if int(right._name[-1])%2 != 0:
+            if int(right._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right))
                 right_new.res._name = right._name[:-1]+str(int(right._name[-1])+1)

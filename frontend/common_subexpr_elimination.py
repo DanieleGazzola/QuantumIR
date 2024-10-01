@@ -1,41 +1,25 @@
 from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
-from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
 from xdsl.rewriter import Rewriter
-from xdsl.traits import EffectInstance, IsolatedFromAbove
+from xdsl.traits import IsolatedFromAbove
 from dataclasses import dataclass
-from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
+from dialect.dialect import FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTIONS #####
-
-# check if the operation is not used in the following part of the program.
-def is_trivially_dead(op: Operation) -> bool:
-
-    # these types of operations are never dead
-    if isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
-        return False
-    
-    # if the result of the operation is never used then it is dead
-    return not op.res.uses
-
-
 
 # check if the existing SSAValue will be changed in the future
 # if not we can safely use it to replace the current operation
 def has_other_modifications(from_op: Operation) -> bool:
 
-    effects = set[EffectInstance]()
     next_op = from_op.next_op
 
     # check on every operation until the end of the function
     while not isinstance(next_op, MeasureOp):
-        effects = GetMemoryEffect.get_effects(next_op)
         
         # il the op is an InitOp surely will not change the SSAValue 
         if not isinstance(next_op, InitOp):
-            second_last_effect = list(effects)[-2]
-            if second_last_effect.value == from_op.res:
+            if next_op.target == from_op.res:
                 return True
             
         next_op = next_op.next_op

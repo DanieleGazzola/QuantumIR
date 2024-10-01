@@ -1,19 +1,11 @@
 from __future__ import annotations
 
-from typing import ClassVar, TypeVar
+from typing import TypeVar
 
 from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType,IntegerAttr
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
-from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def, traits_def
-from xdsl.traits import MemoryEffect, MemoryEffectKind, EffectInstance, OpTrait
+from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def
 
-
-# Class to get the memory effects of an operation
-class GetMemoryEffect(MemoryEffect):
-
-    @classmethod
-    def get_effects(cls, op: IRDLOperation) -> set[EffectInstance] | None:
-        return op.traits
 
 # Operation to initialize a qubit (or a vector of them) to zero
 @irdl_op_definition
@@ -22,7 +14,6 @@ class InitOp(IRDLOperation):
     name = "quantum.init"
     value: IntegerType = attr_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, values):
         # Determine if values is a single IntegerType or a VectorType of IntegerType
@@ -42,7 +33,6 @@ class InitOp(IRDLOperation):
             raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
 
         super().__init__(result_types=result_types, attributes=attributes)
-        self.traits = [EffectInstance(MemoryEffectKind.ALLOC, self.res)]
            
     @staticmethod
     def from_value(value) -> InitOp:
@@ -55,7 +45,6 @@ class NotOp(IRDLOperation):
     name = "quantum.not"
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, target: SSAValue):
         if isinstance(target.type, IntegerType):
@@ -63,7 +52,6 @@ class NotOp(IRDLOperation):
         else: # VectorType
             size=target.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
-        self.traits = [EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
     
     @staticmethod
     def from_value(value: SSAValue) -> NotOp:
@@ -78,7 +66,6 @@ class CNotOp(IRDLOperation):
     control: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, control: SSAValue, target: SSAValue):
         if isinstance(control.type, IntegerType) and isinstance(target.type, IntegerType):
@@ -86,7 +73,6 @@ class CNotOp(IRDLOperation):
         else: # VectorType
             size = control.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control, target])
-        self.traits = [EffectInstance(MemoryEffectKind.READ, self.control), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
 
     @staticmethod
     def from_value(control: SSAValue, target: SSAValue) -> CNotOp:
@@ -102,7 +88,6 @@ class CCNotOp(IRDLOperation):
     control2: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, control1: SSAValue, control2: SSAValue, target: SSAValue):
         if isinstance(control1.type, IntegerType) and isinstance(control2.type, IntegerType) and isinstance(target.type, IntegerType):
@@ -110,8 +95,7 @@ class CCNotOp(IRDLOperation):
         else: # VectorType
             size = control1.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control1, control2, target])
-        self.traits = [EffectInstance(MemoryEffectKind.READ, self.control1), EffectInstance(MemoryEffectKind.READ, self.control2), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
-
+ 
     @staticmethod
     def from_value(control1: SSAValue, control2: SSAValue, target: SSAValue) -> CCNotOp:
         return CCNotOp(control1, control2, target)
@@ -124,7 +108,6 @@ class MeasureOp(IRDLOperation):
     name = "quantum.measure"
     value: Operand = operand_def(IntegerType(1))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, value: SSAValue):
         if isinstance(value.type, IntegerType):
@@ -132,7 +115,6 @@ class MeasureOp(IRDLOperation):
         else: # VectorType
             size=value.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[value])
-        self.traits = [EffectInstance(MemoryEffectKind.WRITE, self.value)]
 
     @staticmethod
     def from_value(value: SSAValue) -> MeasureOp:
