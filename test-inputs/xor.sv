@@ -3,9 +3,9 @@ module FullAdder(input logic a, b, cin,
 
     logic temp1, temp2;
 
-    assign temp1 = ~(a ^ b);
-    assign cout = temp1 ^ ~a;
-    assign temp2 = ~(b | ~a) | (~a | cin);
-    assign sum = ~cout & temp2;
+    assign cout = ~a ^ b;
+    assign temp1 = cout ^ ~cout;
+    assign temp2 = ~(b & ~cout);
+    assign sum = ~temp1 & temp2 & cout;
     
 endmodule

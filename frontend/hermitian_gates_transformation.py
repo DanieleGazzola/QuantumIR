@@ -57,7 +57,7 @@ class OperationInfo:
     # this function is used to check if two hashes match
     # computes the hash of the name and the operation operands.
     def __hash__(self):
-        self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name[1]))
+        self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name.split('_')[0]))
         return self.hash
     
     # This function is called when two opearation hashes are equal. Here we implement the logic to check if the two operations
@@ -116,17 +116,14 @@ class HGEDriver:
     # and delete the current operation
     def _replace_and_delete(self, op: Operation, existing: Operation):
 
-        def wasVisited(use: Use):
-            return use.operation not in self._known_ops
-
         # replace all future uses of the current operation results with the existing one
         # !!! ORRIBLE SOLUTION WITH THE TUPLE else TypeError: OpResult not iterable
         for o, n in zip([op.results,], [existing.target,], strict=True):
-            if all(wasVisited(u) for u in o[0].uses): 
-                o[0].replace_by(n)
+            o[0].replace_by(n)
 
         # if there are no uses delete the operationS
         if all(not r.uses for r in op.results):
+            self._known_ops.pop(op)
             self._commit_erasure(op)
             self._commit_erasure(existing)
 
@@ -134,7 +131,13 @@ class HGEDriver:
     def _simplify_operation(self, op: Operation):
 
         # never simplify these types of operations
-        if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
+        if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp):
+            return
+        
+        if int(op.res._name.split('_')[1]) != int(op.target._name.split('_')[1]) + 1:
+            op.res._name = op.res._name.split('_')[0] + '_' + str(int(op.target._name.split('_')[1]) + 1)
+
+        if isinstance(op, MeasureOp):
             return
 
         # check if the operation is already known

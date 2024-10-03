@@ -143,7 +143,7 @@ class IRGen:
     
         for var in proto_return:
             measure = self.builder.insert(MeasureOp.from_value(self.symbol_table[var.internalSymbol]))
-            measure.res._name = str(self.symbol_table[var.internalSymbol]._name[:-1]) + str(int(self.symbol_table[var.internalSymbol]._name[-1]) + 1)
+            measure.res._name = str(self.symbol_table[var.internalSymbol]._name.split('_')[0]) + "_" + str(int(self.symbol_table[var.internalSymbol]._name.split('_')[1]) + 1)
 
         self.symbol_table = None
         self.builder = parent_builder
@@ -219,7 +219,7 @@ class IRGen:
 
         not_op = self.builder.insert(NotOp.from_value(operand))
 
-        not_op.res._name = operand._name[:-1] + str(int(operand._name[-1]) + 1)
+        not_op.res._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
 
         if isinstance(expr.operand, NamedValue):
             self.declare(expr.operand.symbol, not_op.res)
@@ -267,7 +267,7 @@ class IRGen:
             if int(left._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.left.symbol)
                 left_new = self.builder.insert(NotOp.from_value(left)).res
-                left_new._name = left._name[:-1]+str(int(left._name[-1])+1)
+                left_new._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                 self.declare(expr.left.symbol, left_new)
                 left = left_new
         elif isinstance(expr.left, BinaryOp):
@@ -285,7 +285,7 @@ class IRGen:
             if int(right._name[-1])%2 != 0 and int(right._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right)).res
-                right_new._name = right._name[:-1]+str(int(right._name[-1])+1)
+                right_new._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                 self.declare(expr.right.symbol, right_new)
                 right = right_new
         elif isinstance(expr.right, BinaryOp):
@@ -331,7 +331,7 @@ class IRGen:
             cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[init_op.res._name]))
 
             # leggibilità ciaone
-            cnot_op_1.res._name = init_op.res._name[:-1]+str(int(init_op.res._name[-1]) + 1)
+            cnot_op_1.res._name = init_op.res._name.split('_')[0] + "_" +str(int(init_op.res._name.split('_')[1]) + 1)
             name = cnot_op_1.res._name
 
             self.declare(cnot_op_1.res._name, cnot_op_1.res)
@@ -340,7 +340,7 @@ class IRGen:
 
         cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])) 
 
-        cnot_op_2.res._name = name[:-1]+str(int(name[-1]) + 1)
+        cnot_op_2.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
 
         self.declare(cnot_op_2.res._name, cnot_op_2.res)
 
@@ -350,7 +350,7 @@ class IRGen:
                 if int(left._name[1]) >= self.n_args:
                     self.delete(expr.left.operand.symbol)
                     left_new = self.builder.insert(NotOp.from_value(left)).res
-                    left_new._name = left._name[:-1]+str(int(left._name[-1])+1)
+                    left_new._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                     self.declare(expr.left.operand.symbol, left_new)
 
         if isinstance(expr.right, UnaryOp):
@@ -359,7 +359,7 @@ class IRGen:
                 if int(right._name[1]) >= self.n_args:
                     self.delete(expr.right.operand.symbol)
                     right_new = self.builder.insert(NotOp.from_value(right)).res
-                    right_new._name = right._name[:-1]+str(int(right._name[-1])+1)
+                    right_new._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                     self.declare(expr.right.operand.symbol, right_new)
 
         return cnot_op_2
@@ -392,7 +392,7 @@ class IRGen:
             if int(left._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.left.symbol)
                 left_new = self.builder.insert(NotOp.from_value(left)).res
-                left_new._name = left._name[:-1]+str(int(left._name[-1])+1)
+                left_new._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                 self.declare(expr.left.symbol, left_new)
                 left = left_new
         elif isinstance(expr.left, BinaryOp):
@@ -410,7 +410,7 @@ class IRGen:
             if int(right._name[-1])%2 != 0 and int(right._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right)).res
-                right_new._name = right._name[:-1]+str(int(right._name[-1])+1)
+                right_new._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                 self.declare(expr.right.symbol, right_new)
                 right = right_new
         elif isinstance(expr.right, BinaryOp):
@@ -424,7 +424,7 @@ class IRGen:
         
         ccnot_op = self.builder.insert(CCNotOp.from_value(left, right, self.symbol_table[init_op.res._name]))
 
-        ccnot_op.res._name = init_op.res._name[:-1]+str(int(init_op.res._name[-1]) + 1)
+        ccnot_op.res._name = init_op.res._name.split('_')[0] + "_" +str(int(init_op.res._name.split('_')[1]) + 1)
         self.declare(ccnot_op.res._name, ccnot_op.res)
 
         if isinstance(expr.left, UnaryOp):
@@ -433,7 +433,7 @@ class IRGen:
                 if int(left._name[1]) >= self.n_args:
                     self.delete(expr.left.operand.symbol)
                     left_new = self.builder.insert(NotOp.from_value(left)).res
-                    left_new._name = left._name[:-1]+str(int(left._name[-1])+1)
+                    left_new._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                     self.declare(expr.left.operand.symbol, left_new)
 
         if isinstance(expr.right, UnaryOp):
@@ -442,7 +442,7 @@ class IRGen:
                 if int(right._name[1]) >= self.n_args:
                     self.delete(expr.right.operand.symbol)
                     right_new = self.builder.insert(NotOp.from_value(right)).res
-                    right_new._name = right._name[:-1]+str(int(right._name[-1])+1)
+                    right_new._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                     self.declare(expr.right.operand.symbol, right_new)
         
         return ccnot_op
@@ -476,12 +476,12 @@ class IRGen:
             if int(left._name[-1])%2 != 0 and int(left._name[1]) < self.n_args:
                 self.delete(expr.left.symbol)
                 left_new = self.builder.insert(NotOp.from_value(left)).res
-                left_new._name = left._name[:-1]+str(int(left._name[-1])+1)
+                left_new._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                 self.declare(expr.left.symbol, left_new)
                 left = left_new
             self.delete(expr.left.symbol)
             not_op_1 = self.builder.insert(NotOp.from_value(left))
-            not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+            not_op_1.res._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
             left_name = expr.left.symbol
             self.declare(expr.left.symbol, not_op_1.res)
         else:
@@ -489,7 +489,7 @@ class IRGen:
                 left = self.ir_gen_bin(expr.left).res
                 left_name = left._name
                 not_op_1 = self.builder.insert(NotOp.from_value(left))
-                not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+                not_op_1.res._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                 left_name = not_op_1.res._name
                 left = not_op_1.res
                 self.declare(not_op_1.res._name, not_op_1.res)
@@ -501,13 +501,13 @@ class IRGen:
                 if isinstance(expr.left.operand, NamedValue):
                     self.delete(expr.left.operand.symbol)
                     not_op_1 = self.builder.insert(NotOp.from_value(left))
-                    not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+                    not_op_1.res._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                     left_name = expr.left.operand.symbol
                     left = not_op_1.res
                     self.declare(expr.left.operand.symbol, not_op_1.res)
                 else:
                     not_op_1 = self.builder.insert(NotOp.from_value(left))
-                    not_op_1.res._name = left._name[:-1]+str(int(left._name[-1]) + 1)
+                    not_op_1.res._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                     left_name = not_op_1.res._name
                     left = not_op_1.res
                     self.declare(not_op_1.res._name, not_op_1.res)
@@ -520,12 +520,12 @@ class IRGen:
             if int(right._name[-1])%2 != 0 and int(right._name[1]) < self.n_args:
                 self.delete(expr.right.symbol)
                 right_new = self.builder.insert(NotOp.from_value(right)).res
-                right_new._name = right._name[:-1]+str(int(right._name[-1])+1)
+                right_new._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                 self.declare(expr.right.symbol, right_new)
                 right = right_new
             self.delete(expr.right.symbol)
             not_op_2 = self.builder.insert(NotOp.from_value(right))
-            not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
+            not_op_2.res._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
             right_name = expr.right.symbol
             self.declare(expr.right.symbol, not_op_2.res)
         else:
@@ -533,7 +533,7 @@ class IRGen:
                 right = self.ir_gen_bin(expr.right).res
                 right_name = right._name
                 not_op_2 = self.builder.insert(NotOp.from_value(right))
-                not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
+                not_op_2.res._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                 right_name = not_op_2.res._name
                 right = not_op_2.res
                 self.declare(not_op_2.res._name, not_op_2.res)
@@ -545,65 +545,65 @@ class IRGen:
                 if isinstance(expr.right.operand, NamedValue):
                     self.delete(expr.right.operand.symbol)
                     not_op_2 = self.builder.insert(NotOp.from_value(right))
-                    not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
+                    not_op_2.res._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                     right_name = expr.right.operand.symbol
                     right = not_op_2.res
                     self.declare(expr.right.operand.symbol, not_op_2.res)
                 else:
                     not_op_2 = self.builder.insert(NotOp.from_value(right))
-                    not_op_2.res._name = right._name[:-1]+str(int(right._name[-1]) + 1)
+                    not_op_2.res._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                     right_name = not_op_2.res._name
                     right = not_op_2.res
                     self.declare(not_op_2.res._name, not_op_2.res)
 
 
         ccnot_op = self.builder.insert(CCNotOp.from_value(self.symbol_table[left_name], self.symbol_table[right_name], self.symbol_table[init_op.res._name]))
-        ccnot_op.res._name = init_op.res._name[:-1]+str(int(init_op.res._name[-1]) + 1)
+        ccnot_op.res._name = init_op.res._name.split('_')[0] + "_" +str(int(init_op.res._name.split('_')[1]) + 1)
 
         self.declare(ccnot_op.res._name, ccnot_op.res)
         
         if isinstance(expr.left, NamedValue):
             name = self.symbol_table[left_name]._name
             not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[left_name]))
-            not_op_3.res._name = name[:-1]+str(int(name[-1]) + 1)
+            not_op_3.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
             self.delete(left_name)
             self.declare(left_name, not_op_3.res)
         else:
             if isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, NamedValue):
                 name = self.symbol_table[left_name]._name
                 not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[left_name]))
-                not_op_4.res._name = name[:-1]+str(int(name[-1]) + 1)
+                not_op_4.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
                 self.delete(left_name)
                 self.declare(left_name, not_op_4.res)
             else:
                 name = self.symbol_table[left_name]._name
                 not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[left_name]))
-                not_op_4.res._name = name[:-1]+str(int(name[-1]) + 1)
+                not_op_4.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
                 self.delete(left_name)
                 self.declare(not_op_4.res._name, not_op_4.res)
 
         if isinstance(expr.right, NamedValue):
             name = self.symbol_table[right_name]._name
             not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[right_name]))
-            not_op_4.res._name = name[:-1]+str(int(name[-1]) + 1)
+            not_op_4.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
             self.delete(right_name)
             self.declare(right_name, not_op_4.res)
         else:
             if isinstance(expr.right, UnaryOp) and isinstance(expr.right.operand, NamedValue):
                 name = self.symbol_table[right_name]._name
                 not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[right_name]))
-                not_op_4.res._name = name[:-1]+str(int(name[-1]) + 1)
+                not_op_4.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
                 self.delete(right_name)
                 self.declare(right_name, not_op_4.res)
             else:
                 name = self.symbol_table[right_name]._name
                 not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[right_name]))
-                not_op_4.res._name = name[:-1]+str(int(name[-1]) + 1)
+                not_op_4.res._name = name.split('_')[0] + "_" +str(int(name.split('_')[1]) + 1)
                 self.delete(right_name)
                 self.declare(not_op_4.res._name, not_op_4.res)
 
         not_op_5 = self.builder.insert(NotOp.from_value(self.symbol_table[ccnot_op.res._name]))
-        not_op_5.res._name = ccnot_op.res._name[:-1]+str(int(ccnot_op.res._name[-1]) + 1)
+        not_op_5.res._name = ccnot_op.res._name.split('_')[0] + "_" +str(int(ccnot_op.res._name.split('_')[1]) + 1)
 
         self.declare(not_op_5.res._name, not_op_5.res)
 
@@ -613,7 +613,7 @@ class IRGen:
                 if int(left._name[1]) >= self.n_args:
                     self.delete(expr.left.operand.symbol)
                     left_new = self.builder.insert(NotOp.from_value(left)).res
-                    left_new._name = left._name[:-1]+str(int(left._name[-1])+1)
+                    left_new._name = left._name.split('_')[0] + "_" +str(int(left._name.split('_')[1]) + 1)
                     self.declare(expr.left.operand.symbol, left_new)
 
         if isinstance(expr.right, UnaryOp):
@@ -622,7 +622,7 @@ class IRGen:
                 if int(right._name[1]) >= self.n_args:
                     self.delete(expr.right.operand.symbol)
                     right_new = self.builder.insert(NotOp.from_value(right)).res
-                    right_new._name = right._name[:-1]+str(int(right._name[-1])+1)
+                    right_new._name = right._name.split('_')[0] + "_" +str(int(right._name.split('_')[1]) + 1)
                     self.declare(expr.right.operand.symbol, right_new)
 
         return not_op_5

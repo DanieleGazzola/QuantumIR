@@ -184,13 +184,13 @@ class CSEDriver:
         
         # remap the qubit
         next_op = op.next_op
-
+        
         while next_op != None:
-            if next_op.res._name[1] == op.res._name[1]:
-                next_op.res._name = existing.res._name[:-1] + next_op.res._name[-1]
+            if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
+                next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
             for attr in next_op.operands:
-                if attr._name[1] == op.results[0]._name[1]:
-                    attr._name = existing.results[0]._name[:-1] + next_op.results[0]._name[-1]
+                if attr._name.split('_')[0] == op.results[0]._name.split('_')[0]:
+                    attr._name = existing.results[0]._name.split('_')[0] + "_" + next_op.results[0]._name.split('_')[1]
             next_op = next_op.next_op
 
         # if there are no uses delete the operation
