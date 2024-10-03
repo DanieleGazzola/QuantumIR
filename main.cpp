@@ -44,9 +44,7 @@ int main(int argc, char **argv)
     }
     std::cout << "Chosen Verilog input file: " << filename << "\n"
               << std::endl;
-
-    std::ofstream file;
-    file.open("output.json");
+    std::ofstream file("output.json", std::ios::trunc);
 
     Driver driver;
     driver.addStandardArgs();
@@ -87,6 +85,10 @@ int main(int argc, char **argv)
 
     ASTSerializer serializer(*compilation, writer);
     serializer.serialize(compilation->getRoot());
+
+    size_t lastBracketPos = writer.view().find_last_of('}');
+    if (lastBracketPos != std::string::npos)
+        writer.view().substr(0, lastBracketPos + 1);
 
     file << writer.view().data();
 

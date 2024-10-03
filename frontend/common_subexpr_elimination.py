@@ -190,7 +190,7 @@ class CSEDriver:
                 next_op.res._name = existing.res._name[:-1] + next_op.res._name[-1]
             for attr in next_op.operands:
                 if attr._name[1] == op.results[0]._name[1]:
-                    attr._name[1] = existing.results[0]._name[:-1] + next_op.results[0]._name[-1]
+                    attr._name = existing.results[0]._name[:-1] + next_op.results[0]._name[-1]
             next_op = next_op.next_op
 
         # if there are no uses delete the operation
