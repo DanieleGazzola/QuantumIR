@@ -7,6 +7,7 @@ from frontend.ir_gen import IRGen
 from frontend.common_subexpr_elimination import CommonSubexpressionElimination
 from frontend.remove_unused_op import RemoveUnusedOperations
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
+from frontend.qubit_renumber import QubitRenumber
 from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp
 
@@ -70,11 +71,13 @@ class QuantumIR():
                 print("\n\nRemoved unused operations")
                 Printer().print_op(module)
 
-            middle_module = module.clone()
+            PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
+
+            second_module = module.clone()
             CommonSubexpressionElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if len(middle_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if len(second_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nCommon subexpression elimination")
                 Printer().print_op(module)
 

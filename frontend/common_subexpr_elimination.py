@@ -1,4 +1,4 @@
-from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
+from xdsl.ir import Operation, Block, Region, BlockArgument, OpResult
 from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
 from xdsl.rewriter import Rewriter
@@ -8,17 +8,18 @@ from dialect.dialect import FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTIONS #####
 
-# check if the existing SSAValue will be changed in the future
-# if not we can safely use it to replace the current operation
+# check if the existing SSAValue(qubit) will be changed in the future
 def has_other_modifications(from_op: Operation) -> bool:
 
     next_op = from_op.next_op
 
-    # check on every operation until the end of the function
+    # check on every operation until the end
     while next_op != None:
-        
-        # il the op is an InitOp surely will not change the SSAValue 
+
+        # if the operation is an InitOp surely it will not change the SSAValue 
         if not isinstance(next_op, InitOp):
+
+            # if we find a modification of the qubit we don't substitute
             if next_op.target == from_op.res:
                 return True
             
@@ -26,26 +27,38 @@ def has_other_modifications(from_op: Operation) -> bool:
 
     return False
 
+# check if the existing SSAValue(qubit) will be read after the one we are substituting is modified
+# if not we can remap the operation we have on the second qubit to the first one,
+# deleting the second qubit
 def has_read_after_write(op: Operation, from_op: Operation) -> bool:
 
     next_op = op.next_op
 
+    # check on every operation until the end
     while next_op != None:
+
+        # if the operation is an InitOp surely it will not change the qubit
         if not isinstance(next_op, InitOp):
+
+            # if we find a modification of the second qubit we stop and now we check for reads on the first one
             if next_op.target == op.res:
                 break
+
         next_op = next_op.next_op
     
+    # if we didn't find any write we can safely remap qubits
     if next_op == None:
         return False
     
     next_op = next_op.next_op
 
-    # check on every operation until the end of the function
+    # check on every operation until the end
     while next_op != None:
-        
-        # il the op is an InitOp surely will not change the SSAValue 
+
+        # if the operation is an InitOp surely it will not read the qubit 
         if not isinstance(next_op, InitOp):
+
+            # if we find any use of the first qubit we cannot remap
             if any(attr == from_op.res for attr in next_op.operands):
                 return True
             
@@ -174,24 +187,22 @@ class CSEDriver:
     # and delete the current operation
     def _replace_and_delete(self, op: Operation, existing: Operation):
 
-        def wasVisited(use: Use):
-            return use.operation not in self._known_ops
-
         # replace all future uses of the current operation results with the existing one
         for o, n in zip(op.results, existing.results, strict=True):
-            if all(wasVisited(u) for u in o.uses):
-                o.replace_by(n)
+            o.replace_by(n)
+
+        if not has_read_after_write(op, existing):
         
-        # remap the qubit
-        next_op = op.next_op
-        
-        while next_op != None:
-            if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
-                next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
-            for attr in next_op.operands:
-                if attr._name.split('_')[0] == op.results[0]._name.split('_')[0]:
-                    attr._name = existing.results[0]._name.split('_')[0] + "_" + next_op.results[0]._name.split('_')[1]
-            next_op = next_op.next_op
+            # remap the qubit
+            next_op = op.next_op
+            
+            while next_op != None:
+                if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
+                    next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
+                for attr in next_op.operands:
+                    if attr._name.split('_')[0] == op.results[0]._name.split('_')[0]:
+                        attr._name = existing.results[0]._name.split('_')[0] + "_" + next_op.results[0]._name.split('_')[1]
+                next_op = next_op.next_op
 
         # if there are no uses delete the operation
         if all(not r.uses for r in op.results):
@@ -206,8 +217,8 @@ class CSEDriver:
     
         # check if the operation is already known
         if existing := self._known_ops.get(op):
-            # if the existing op will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
+            # if the existing op(qubit) will not be changed in the future we can replace the current operation
+            if not has_other_modifications(existing):
                     self._replace_and_delete(op, existing)
                     return
         

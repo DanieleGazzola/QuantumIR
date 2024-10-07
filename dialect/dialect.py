@@ -25,10 +25,8 @@ class InitOp(IRDLOperation):
             attributes = {"type": values,"value": IntegerAttr(0,IntegerType(1))}   
         elif isinstance(values, VectorType):
             # Vector of IntegerType case
-            element_type=values.get_element_type()
-            size=values.get_shape()[0]
-            result_types= [VectorType(element_type, [size,])]     
-            attributes = {"type": values,"value": IntegerAttr(0,IntegerType(size))}
+            result_types= [VectorType(values.get_element_type(), [values.get_shape()[0],])]     
+            attributes = {"type": values,"value": IntegerAttr(0,IntegerType(values.get_shape()[0]))}
         else: 
             raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
 
