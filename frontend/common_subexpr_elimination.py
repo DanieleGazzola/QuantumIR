@@ -191,18 +191,15 @@ class CSEDriver:
         for o, n in zip(op.results, existing.results, strict=True):
             o.replace_by(n)
 
-        if not has_read_after_write(op, existing):
+        next_op = op.next_op
         
-            # remap the qubit
-            next_op = op.next_op
-            
-            while next_op != None:
-                if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
-                    next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
-                for attr in next_op.operands:
-                    if attr._name.split('_')[0] == op.results[0]._name.split('_')[0]:
-                        attr._name = existing.results[0]._name.split('_')[0] + "_" + next_op.results[0]._name.split('_')[1]
-                next_op = next_op.next_op
+        while next_op != None:
+            if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
+                next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
+            for attr in next_op.operands:
+                if attr._name.split('_')[0] == op.results[0]._name.split('_')[0]:
+                    attr._name = existing.results[0]._name.split('_')[0] + "_" + next_op.results[0]._name.split('_')[1]
+            next_op = next_op.next_op
 
         # if there are no uses delete the operation
         if all(not r.uses for r in op.results):
@@ -218,7 +215,7 @@ class CSEDriver:
         # check if the operation is already known
         if existing := self._known_ops.get(op):
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing):
+            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
                     self._replace_and_delete(op, existing)
                     return
         

@@ -356,9 +356,20 @@ class IRGen:
         check2 = (isinstance(expr.left, NamedValue) or expr.left.op == "BinaryXor" or expr.left.op == "BitWiseNot")    # need to be True
         check3 = (isinstance(expr.right, NamedValue) and isinstance(expr.left, NamedValue))                            # need to be False
 
-        # se non è possibile alloca un nuovo qubit
-        if not(check1 and check2 and not check3):
-
+        # if possible write on left qubit
+        if isinstance(expr.left, BinaryOp) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, BinaryOp)):
+            name = left._name
+            cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])).res
+            cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
+            self.declare(cnot_op_2._name, cnot_op_2)
+        # try to write on right qubit
+        elif isinstance(expr.right, BinaryOp) or (isinstance(expr.right, UnaryOp) and isinstance(expr.right.operand, BinaryOp)):
+            name = right._name
+            cnot_op_2 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[name])).res
+            cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
+            self.declare(cnot_op_2._name, cnot_op_2)
+        # allocate a new qubit
+        else:
             init_op = self.ir_gen_new_qubit(expr)
             init_op._name = "q" + str(self.n_qubit) + "_0"
             self.n_qubit += 1
@@ -370,12 +381,10 @@ class IRGen:
             name = cnot_op_1._name
 
             self.declare(cnot_op_1._name, cnot_op_1)
-        else:
-            name = left._name
 
-        cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])).res
-        cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
-        self.declare(cnot_op_2._name, cnot_op_2)
+            cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])).res
+            cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
+            self.declare(cnot_op_2._name, cnot_op_2)
 
         if isinstance(expr.left, UnaryOp):
             self.restore_qubit(expr, "left")
