@@ -192,16 +192,16 @@ class IRGen:
     def ir_gen_init(self) -> SSAValue:
 
         # insert the InitOp
-        init_op = self.builder.insert(InitOp.from_value(IntegerType(1))).res
+        initOp_ssa = self.builder.insert(InitOp.from_value(IntegerType(1))).res
 
         # set the name of the qubit
-        init_op._name = "q" + str(self.n_qubit) + "_0"
+        initOp_ssa._name = "q" + str(self.n_qubit) + "_0"
         self.n_qubit += 1
 
         # add the new SSAValue(qubit) in the symbol_table
-        self.declare(init_op._name, init_op)
+        self.declare(initOp_ssa._name, initOp_ssa)
 
-        return init_op
+        return initOp_ssa
     
     # generation of a unary operation coming from verilog
     def ir_gen_unary_op(self, expr: Assignment) -> SSAValue:
@@ -209,19 +209,21 @@ class IRGen:
         # symbol coming from verilog
         symbol = expr.left.symbol
 
-        final_op = self.ir_gen_unary(expr.right)
+        final_op_ssa = self.ir_gen_unary(expr.right)
 
         # add the SSAValue to the symbol_table
-        self.declare(symbol, final_op)
+        self.declare(symbol, final_op_ssa)
         
-        return final_op
+        return final_op_ssa
 
     # generation of a unary operation
     def ir_gen_unary(self, expr: UnaryOp) -> SSAValue:
         
         if expr.op == "BitwiseNot":     # not operation
-            op = self.ir_gen_not(expr)
-            return op
+            unary_ssa = self.ir_gen_not(expr)
+            return unary_ssa
+        else:
+            raise IRGenError(f"Unknown unary operation {expr.op}")
         
     # generation of a not operation
     def ir_gen_not(self, expr: UnaryOp) -> SSAValue:
@@ -235,18 +237,18 @@ class IRGen:
             self.delete(operand._name)
         
         # insert the NotOp
-        not_op = self.builder.insert(NotOp.from_value(operand)).res
+        not_op_ssa = self.builder.insert(NotOp.from_value(operand)).res
 
         # set the name of the SSAValue adding 1 to the temporal state of the qubit
-        not_op._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
+        not_op_ssa._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
 
         # add the SSAValue to the symbol_table
         if isinstance(expr.operand, NamedValue):
-            self.declare(expr.operand.symbol, not_op) # key is the symbol they have in verilog
+            self.declare(expr.operand.symbol, not_op_ssa) # key is the symbol they have in verilog
         elif isinstance(expr.operand, BinaryOp):
-            self.declare(operand._name, not_op)       # key is the name of the SSAValue
+            self.declare(operand._name, not_op_ssa)       # key is the name of the SSAValue
         
-        return not_op
+        return not_op_ssa
 
     # generation of a binary operation from verilog
     def ir_gen_bin_op(self, expr: Assignment) -> SSAValue:
@@ -255,39 +257,39 @@ class IRGen:
         symbol = expr.left.symbol
 
         # generate the binary operation
-        final_op = self.ir_gen_bin(expr.right)
+        final_op_ssa = self.ir_gen_bin(expr.right)
 
         # add the SSAValue to the symbol_table
-        self.declare(symbol, final_op)
+        self.declare(symbol, final_op_ssa)
 
-        return final_op
+        return final_op_ssa
 
     # switch for the different types of binary operations
     def ir_gen_bin(self, expr: BinaryOp) -> SSAValue:
 
         if expr.op == "BinaryXor":
-            op = self.ir_gen_xor(expr) # xor operation
+            result_ssa = self.ir_gen_xor(expr) # xor operation
         elif expr.op == "BinaryAnd":
-            op = self.ir_gen_and(expr) # and operation
+            result_ssa = self.ir_gen_and(expr) # and operation
         elif expr.op == "BinaryOr":
-            op = self.ir_gen_or(expr)  # or operation
+            result_ssa = self.ir_gen_or(expr)  # or operation
         else:
             raise IRGenError(f"Unknown binary operation {expr.op}")
         
-        return op
+        return result_ssa
 
     def ir_gen_named_value(self, expr: NamedValue) -> SSAValue:
-        operand = self.symbol_table[expr.symbol]
-        # if the qubit has been negated, and is searching for the original qubit
+        namedValue_ssa = self.symbol_table[expr.symbol]
+        # if the qubit has been negated, and it needs the original qubit
         # we negate it again
-        if int(operand._name[-1])%2 != 0 and int(operand._name[1]) < self.n_args:
+        if int(namedValue_ssa._name[-1])%2 != 0 and int(namedValue_ssa._name[1]) < self.n_args: # odd status number and an input argument
             self.delete(expr.symbol)
-            operand_new = self.builder.insert(NotOp.from_value(operand)).res
-            operand_new._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
-            self.declare(expr.symbol, operand_new)
-            operand = operand_new
+            not_ssa = self.builder.insert(NotOp.from_value(namedValue_ssa)).res
+            not_ssa._name = namedValue_ssa._name.split('_')[0] + "_" + str(int(namedValue_ssa._name.split('_')[1]) + 1)
+            self.declare(expr.symbol, not_ssa)
+            namedValue_ssa = not_ssa
         
-        return operand
+        return namedValue_ssa
     
     def ir_gen_operand(self, expr: BinaryOp, side: str) -> SSAValue:
 
@@ -297,31 +299,35 @@ class IRGen:
             operand = expr.right
 
         if isinstance(operand, NamedValue):
-            result = self.ir_gen_named_value(operand)
+            result_ssa = self.ir_gen_named_value(operand)
         elif isinstance(operand, BinaryOp):
-            result = self.ir_gen_bin(operand)
+            result_ssa = self.ir_gen_bin(operand)
         elif isinstance(operand, UnaryOp):
             if isinstance(operand.operand, NamedValue):
-                result = self.symbol_table[operand.operand.symbol]
-            if not(isinstance(operand.operand, NamedValue) and int(result._name[1]) < self.n_args and int(result._name[-1])%2 != 0):
-                result = self.ir_gen_unary(operand)
+                result_ssa = self.symbol_table[operand.operand.symbol]
+            if not(isinstance(operand.operand, NamedValue) and int(result_ssa._name[1]) < self.n_args and int(result_ssa._name[-1])%2 != 0):
+                result_ssa = self.ir_gen_unary(operand)
         
-        return result
+        return result_ssa
     
+    # every time we negate a qubit, after the operation we restore its original state
+    # by negating it again. Only if the qubit is not an input argument.
+    # if it's an input argument we do it in the gen_nameed_value function
     def restore_qubit(self, expr: BinaryOp, side: str) -> None:
 
         if side == "left":
-            operand = expr.left
+            binaryOp_operand = expr.left
         elif side == "right":
-            operand = expr.right
+            binaryOp_operand = expr.right
 
-        if isinstance(operand.operand, NamedValue):
-            op = self.symbol_table[operand.operand.symbol]
-            if int(op._name[1]) >= self.n_args:
-                self.delete(operand.operand.symbol)
-                op_new = self.builder.insert(NotOp.from_value(op)).res
-                op_new._name = op._name.split('_')[0] + "_" + str(int(op._name.split('_')[1]) + 1)
-                self.declare(operand.operand.symbol, op_new)
+        sub_operand = binaryOp_operand.operand
+        if isinstance(sub_operand, NamedValue):
+            sub_operand_ssa = self.symbol_table[sub_operand.symbol]
+            if int(sub_operand_ssa._name[1]) >= self.n_args: # not one of the input arguments
+                self.delete(sub_operand.symbol)
+                op_new = self.builder.insert(NotOp.from_value(sub_operand_ssa)).res
+                op_new._name = sub_operand_ssa._name.split('_')[0] + "_" + str(int(sub_operand_ssa._name.split('_')[1]) + 1)
+                self.declare(sub_operand.symbol, op_new)
 
     def ir_gen_new_qubit(self, expr: BinaryOp) -> SSAValue:
 
@@ -334,23 +340,25 @@ class IRGen:
                 low_index = int(match.group(3))
                 size = high_index - low_index + 1
             element_type = IntegerType(1)
-            init_op = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,]))).res
+            init_op_ssa = self.builder.insert(InitOp.from_value(VectorType(element_type,[size,]))).res
         else:
-            init_op = self.builder.insert(InitOp.from_value(IntegerType(1))).res
+            init_op_ssa = self.builder.insert(InitOp.from_value(IntegerType(1))).res
 
-        return init_op
+        return init_op_ssa
 
     # generation of a xor operation
     def ir_gen_xor(self, expr: BinaryOp) -> SSAValue:
         
         # set left operand
-        left = self.ir_gen_operand(expr, "left")
+        left_ssa = self.ir_gen_operand(expr, "left")
 
         # set right operand
-        right = self.ir_gen_operand(expr, "right")
+        right_ssa = self.ir_gen_operand(expr, "right")
         
-        # check if we can do the xor in place
-        # we can do it only if the two operands are not both named values
+        # check if we can do the xor in place:
+        # e.g. xor is implemented in the quantum world as two cnot. 
+        # In the case of two consecutive xor (a^b^c), instead of allocating 2 new qubits we use just one.
+        # we can do it only if the two operands are not both named values 
         # also we need left and right to be either a NamedValue or a Xor operation or a Not operation
         check1 = (isinstance(expr.right, NamedValue) or expr.right.op == "BinaryXor" or expr.right.op == "BitWiseNot") # need to be True
         check2 = (isinstance(expr.left, NamedValue) or expr.left.op == "BinaryXor" or expr.left.op == "BitWiseNot")    # need to be True
@@ -358,33 +366,37 @@ class IRGen:
 
         # if possible write on left qubit
         if isinstance(expr.left, BinaryOp) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, BinaryOp)):
-            name = left._name
-            cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])).res
-            cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
-            self.declare(cnot_op_2._name, cnot_op_2)
+            ssa_name = left_ssa._name
+
+            cnotOp2_ssa = self.builder.insert(CNotOp.from_value(right_ssa, self.symbol_table[ssa_name])).res
+            cnotOp2_ssa._name = ssa_name.split('_')[0] + "_" + str(int(ssa_name.split('_')[1]) + 1)
+
+            self.declare(cnotOp2_ssa._name, cnotOp2_ssa)
         # try to write on right qubit
         elif isinstance(expr.right, BinaryOp) or (isinstance(expr.right, UnaryOp) and isinstance(expr.right.operand, BinaryOp)):
-            name = right._name
-            cnot_op_2 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[name])).res
-            cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
-            self.declare(cnot_op_2._name, cnot_op_2)
+            ssa_name = right_ssa._name
+
+            cnotOp2_ssa = self.builder.insert(CNotOp.from_value(left_ssa, self.symbol_table[ssa_name])).res
+            cnotOp2_ssa._name = ssa_name.split('_')[0] + "_" + str(int(ssa_name.split('_')[1]) + 1)
+
+            self.declare(cnotOp2_ssa._name, cnotOp2_ssa)
         # allocate a new qubit
         else:
-            init_op = self.ir_gen_new_qubit(expr)
-            init_op._name = "q" + str(self.n_qubit) + "_0"
-            self.n_qubit += 1
+            initOp_ssa = self.ir_gen_new_qubit(expr)
+            initOp_ssa._name = "q" + str(self.n_qubit) + "_0"
+            self.n_qubit += 1                    
             
-            self.declare(init_op._name, init_op)
+            self.declare(initOp_ssa._name, initOp_ssa)
         
-            cnot_op_1 = self.builder.insert(CNotOp.from_value(left, self.symbol_table[init_op._name])).res
-            cnot_op_1._name = init_op._name.split('_')[0] + "_" + str(int(init_op._name.split('_')[1]) + 1)
-            name = cnot_op_1._name
+            cnotOp1_ssa = self.builder.insert(CNotOp.from_value(left_ssa, self.symbol_table[initOp_ssa._name])).res
+            cnotOp1_ssa._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
+            name = cnotOp1_ssa._name
 
-            self.declare(cnot_op_1._name, cnot_op_1)
+            self.declare(cnotOp1_ssa._name, cnotOp1_ssa)
 
-            cnot_op_2 = self.builder.insert(CNotOp.from_value(right, self.symbol_table[name])).res
-            cnot_op_2._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
-            self.declare(cnot_op_2._name, cnot_op_2)
+            cnotOp2_ssa = self.builder.insert(CNotOp.from_value(right_ssa, self.symbol_table[name])).res
+            cnotOp2_ssa._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
+            self.declare(cnotOp2_ssa._name, cnotOp2_ssa)
 
         if isinstance(expr.left, UnaryOp):
             self.restore_qubit(expr, "left")
@@ -392,25 +404,25 @@ class IRGen:
         if isinstance(expr.right, UnaryOp):
             self.restore_qubit(expr, "right")
 
-        return cnot_op_2
+        return cnotOp2_ssa
 
     def ir_gen_and(self, expr: BinaryOp) -> SSAValue:
 
         # initialize a new qubit or a new qubit register
-        init_op = self.ir_gen_new_qubit(expr)
-        init_op._name = "q" + str(self.n_qubit) + "_0"
+        initOp_ssa = self.ir_gen_new_qubit(expr)
+        initOp_ssa._name = "q" + str(self.n_qubit) + "_0"
         self.n_qubit += 1
 
-        self.declare(init_op._name, init_op)
+        self.declare(initOp_ssa._name, initOp_ssa)
 
         # set left operand
-        left = self.ir_gen_operand(expr, "left")
+        left_ssa = self.ir_gen_operand(expr, "left")
 
         # set right operand
-        right = self.ir_gen_operand(expr, "right")
+        right_ssa = self.ir_gen_operand(expr, "right")
         
-        ccnot_op = self.builder.insert(CCNotOp.from_value(left, right, self.symbol_table[init_op._name])).res
-        ccnot_op._name = init_op._name.split('_')[0] + "_" + str(int(init_op._name.split('_')[1]) + 1)
+        ccnot_op = self.builder.insert(CCNotOp.from_value(left_ssa, right_ssa, self.symbol_table[initOp_ssa._name])).res
+        ccnot_op._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
         self.declare(ccnot_op._name, ccnot_op)
 
         if isinstance(expr.left, UnaryOp):
@@ -421,6 +433,7 @@ class IRGen:
         
         return ccnot_op
     
+    # generation of an operand for the or operation
     def ir_gen_operand_or(self, expr: BinaryOp, side: str) -> str:
 
         if side == "left":
@@ -429,89 +442,88 @@ class IRGen:
             operand = expr.right
 
         if isinstance(operand, NamedValue):
-            op = self.symbol_table[operand.symbol]
-            # if the qubit has been negated, and is searching for the original qubit
-            # we negate it again
-            if int(op._name[-1])%2 != 0 and int(op._name[1]) < self.n_args:
-                self.delete(operand.symbol)
-                op_new = self.builder.insert(NotOp.from_value(op)).res
-                op_new._name = op._name.split('_')[0] + "_" + str(int(op._name.split('_')[1]) + 1)
-                self.declare(operand.symbol, op_new)
-                op = op_new
+            operand_ssaValue = self.ir_gen_named_value(operand)
             self.delete(operand.symbol)
-            not_op_1 = self.builder.insert(NotOp.from_value(op)).res
-            not_op_1._name = op._name.split('_')[0] + "_" + str(int(op._name.split('_')[1]) + 1)
-            name = operand.symbol
+
+            notOp1_ssa = self.builder.insert(NotOp.from_value(operand_ssaValue)).res
+            notOp1_ssa._name = operand_ssaValue._name.split('_')[0] + "_" + str(int(operand_ssaValue._name.split('_')[1]) + 1)
+            
+            declaration_name = operand.symbol
         else:
             if isinstance(operand, BinaryOp):
-                op = self.ir_gen_bin(operand)
-                name = op._name
-                not_op_1 = self.builder.insert(NotOp.from_value(op)).res
-                not_op_1._name = op._name.split('_')[0] + "_" + str(int(op._name.split('_')[1]) + 1)
-                name = not_op_1._name
+                operand_ssaValue = self.ir_gen_bin(operand)
+
+                notOp1_ssa = self.builder.insert(NotOp.from_value(operand_ssaValue)).res
+                notOp1_ssa._name = operand_ssaValue._name.split('_')[0] + "_" + str(int(operand_ssaValue._name.split('_')[1]) + 1)
+                
+                declaration_name = notOp1_ssa._name
             elif isinstance(operand, UnaryOp):
                 unary_operand = operand.operand
                 if isinstance(unary_operand, NamedValue):
-                    op = self.symbol_table[unary_operand.symbol]
-                if not(isinstance(unary_operand, NamedValue) and int(op._name[1]) < self.n_args and int(op._name[-1])%2 != 0):
-                    op = self.ir_gen_unary(operand)
+                    operand_ssaValue = self.symbol_table[unary_operand.symbol]
+                if not(isinstance(unary_operand, NamedValue) and int(operand_ssaValue._name[1]) < self.n_args and int(operand_ssaValue._name[-1])%2 != 0):
+                    operand_ssaValue = self.ir_gen_unary(operand)
                 if isinstance(unary_operand, NamedValue):
                     self.delete(unary_operand.symbol)
-                    not_op_1 = self.builder.insert(NotOp.from_value(op)).res
-                    not_op_1._name = op._name.split('_')[0] + "_" + str(int(op._name.split('_')[1]) + 1)
-                    name = unary_operand.symbol
+                    
+                    notOp1_ssa = self.builder.insert(NotOp.from_value(operand_ssaValue)).res
+                    notOp1_ssa._name = operand_ssaValue._name.split('_')[0] + "_" + str(int(operand_ssaValue._name.split('_')[1]) + 1)
+                    
+                    declaration_name = unary_operand.symbol
                 else:
-                    not_op_1 = self.builder.insert(NotOp.from_value(op)).res
-                    not_op_1._name = op._name.split('_')[0] + "_" + str(int(op._name.split('_')[1]) + 1)
-                    name = not_op_1._name
+                    notOp1_ssa = self.builder.insert(NotOp.from_value(operand_ssaValue)).res
+                    notOp1_ssa._name = operand_ssaValue._name.split('_')[0] + "_" + str(int(operand_ssaValue._name.split('_')[1]) + 1)
+                    
+                    declaration_name = notOp1_ssa._name
         
-        self.declare(name, not_op_1)
+        self.declare(declaration_name, notOp1_ssa)
         
-        return name
+        return declaration_name
 
     def ir_gen_or(self, expr: BinaryOp) -> SSAValue:
 
-        init_op = self.ir_gen_new_qubit(expr)
-            
         # auxiliary SSAValue
-        init_op._name= "q" + str(self.n_qubit) + "_0"
+        initOp_ssa = self.ir_gen_new_qubit(expr)
+            
+        initOp_ssa._name= "q" + str(self.n_qubit) + "_0"
         self.n_qubit += 1
 
-        self.declare(init_op._name, init_op)
+        self.declare(initOp_ssa._name, initOp_ssa)
         
-        left_name = self.ir_gen_operand_or(expr, "left")
+        left_declaration_name = self.ir_gen_operand_or(expr, "left")
 
-        right_name = self.ir_gen_operand_or(expr, "right")
+        right_declaration_name = self.ir_gen_operand_or(expr, "right")
 
-        ccnot_op = self.builder.insert(CCNotOp.from_value(self.symbol_table[left_name], self.symbol_table[right_name], self.symbol_table[init_op._name])).res
-        ccnot_op._name = init_op._name.split('_')[0] + "_" + str(int(init_op._name.split('_')[1]) + 1)
+        left_ssa = self.symbol_table[left_declaration_name]
+        right_ssa = self.symbol_table[right_declaration_name]
 
-        self.declare(ccnot_op._name, ccnot_op)
+        ccnotOp_ssa = self.builder.insert(CCNotOp.from_value(left_ssa, right_ssa, self.symbol_table[initOp_ssa._name])).res
+        ccnotOp_ssa._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
+
+        self.declare(ccnotOp_ssa._name, ccnotOp_ssa)
         
-        name = self.symbol_table[left_name]._name
-        not_op_3 = self.builder.insert(NotOp.from_value(self.symbol_table[left_name])).res
-        not_op_3._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
-        self.delete(left_name)
+        notOp3_ssa = self.builder.insert(NotOp.from_value(left_ssa)).res
+        notOp3_ssa._name = left_ssa._name.split('_')[0] + "_" + str(int(left_ssa._name.split('_')[1]) + 1)
+        self.delete(left_declaration_name)
 
         if isinstance(expr.left, NamedValue) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, NamedValue)):
-            self.declare(left_name, not_op_3)
+            self.declare(left_declaration_name, notOp3_ssa)
         else:
-            self.declare(not_op_3._name, not_op_3)
+            self.declare(notOp3_ssa._name, notOp3_ssa)
 
-        name = self.symbol_table[right_name]._name
-        not_op_4 = self.builder.insert(NotOp.from_value(self.symbol_table[right_name])).res
-        not_op_4._name = name.split('_')[0] + "_" + str(int(name.split('_')[1]) + 1)
-        self.delete(right_name)
+        notOp4_ssa = self.builder.insert(NotOp.from_value(right_ssa)).res
+        notOp4_ssa._name = right_ssa._name.split('_')[0] + "_" + str(int(right_ssa._name.split('_')[1]) + 1)
+        self.delete(right_declaration_name)
 
         if isinstance(expr.right, NamedValue) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, NamedValue)):
-            self.declare(right_name, not_op_4)
+            self.declare(right_declaration_name, notOp4_ssa)
         else:
-            self.declare(not_op_4._name, not_op_4)
+            self.declare(notOp4_ssa._name, notOp4_ssa)
 
-        not_op_5 = self.builder.insert(NotOp.from_value(self.symbol_table[ccnot_op._name])).res
-        not_op_5._name = ccnot_op._name.split('_')[0] + "_" + str(int(ccnot_op._name.split('_')[1]) + 1)
+        notOp5_ssa = self.builder.insert(NotOp.from_value(ccnotOp_ssa)).res
+        notOp5_ssa._name = ccnotOp_ssa._name.split('_')[0] + "_" + str(int(ccnotOp_ssa._name.split('_')[1]) + 1)
 
-        self.declare(not_op_5._name, not_op_5)
+        self.declare(notOp5_ssa._name, notOp5_ssa)
 
         if isinstance(expr.left, UnaryOp):
             self.restore_qubit(expr, "left")
@@ -519,7 +531,7 @@ class IRGen:
         if isinstance(expr.right, UnaryOp):
             self.restore_qubit(expr, "right")
 
-        return not_op_5
+        return notOp5_ssa
 
     def error(self, message: str, cause: Exception | None = None) -> NoReturn:
         raise IRGenError(message) from cause
