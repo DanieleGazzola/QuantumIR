@@ -49,33 +49,13 @@ int main(int argc, char **argv)
     Driver driver;
     driver.addStandardArgs();
 
-    std::optional<bool> showHelp;
-    std::optional<bool> showVersion;
-    driver.cmdLine.add("-h,--help", showHelp, "Display available options");
-    driver.cmdLine.add("--version", showVersion, "Display version information and exit");
-
     if (!driver.parseCommandLine(argc, argv))
         return 1;
-
-    if (showHelp == true)
-    {
-        printf("%s\n", driver.cmdLine.getHelpText("slang SystemVerilog compiler").c_str());
-        return 0;
-    }
-
-    if (showVersion == true)
-    {
-        printf("slang version %d.%d.%d+%s\n", VersionInfo::getMajor(),
-               VersionInfo::getMinor(), VersionInfo::getPatch(),
-               std::string(VersionInfo::getHash()).c_str());
-        return 0;
-    }
 
     if (!driver.processOptions())
         return 2;
 
     bool ok = driver.parseAllSources();
-
     auto compilation = driver.createCompilation();
     ok &= driver.reportCompilation(*compilation, /* quiet */ false);
 
@@ -86,12 +66,19 @@ int main(int argc, char **argv)
     ASTSerializer serializer(*compilation, writer);
     serializer.serialize(compilation->getRoot());
 
-    size_t lastBracketPos = writer.view().find_last_of('}');
+    std::string_view jsonView = writer.view();
+    size_t lastBracketPos = jsonView.find_last_of('}');
+
     if (lastBracketPos != std::string::npos)
-        writer.view().substr(0, lastBracketPos + 1);
-
-    file << writer.view().data();
-
+    {
+        std::string validJson = std::string(jsonView.substr(0, lastBracketPos + 1));
+        file << validJson;
+    }
+    else
+    {
+        std::cerr << "Error: Invalid JSON output" << std::endl;
+        return 4;
+    }
     file.close();
 
     return ok ? 0 : 3;

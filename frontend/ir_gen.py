@@ -237,18 +237,18 @@ class IRGen:
             self.delete(operand._name)
         
         # insert the NotOp
-        not_op_ssa = self.builder.insert(NotOp.from_value(operand)).res
+        notOp_ssa = self.builder.insert(NotOp.from_value(operand)).res
 
         # set the name of the SSAValue adding 1 to the temporal state of the qubit
-        not_op_ssa._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
+        notOp_ssa._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
 
         # add the SSAValue to the symbol_table
         if isinstance(expr.operand, NamedValue):
-            self.declare(expr.operand.symbol, not_op_ssa) # key is the symbol they have in verilog
+            self.declare(expr.operand.symbol, notOp_ssa) # key is the symbol they have in verilog
         elif isinstance(expr.operand, BinaryOp):
-            self.declare(operand._name, not_op_ssa)       # key is the name of the SSAValue
+            self.declare(operand._name, notOp_ssa)       # key is the name of the SSAValue
         
-        return not_op_ssa
+        return notOp_ssa
 
     # generation of a binary operation from verilog
     def ir_gen_bin_op(self, expr: Assignment) -> SSAValue:
@@ -312,14 +312,14 @@ class IRGen:
     
     # every time we negate a qubit, after the operation we restore its original state
     # by negating it again. Only if the qubit is not an input argument.
-    # if it's an input argument we do it in the gen_nameed_value function
+    # if it's an input argument we do it in the gen_named_value function
     def restore_qubit(self, expr: BinaryOp, side: str) -> None:
 
         if side == "left":
             binaryOp_operand = expr.left
         elif side == "right":
             binaryOp_operand = expr.right
-
+        
         sub_operand = binaryOp_operand.operand
         if isinstance(sub_operand, NamedValue):
             sub_operand_ssa = self.symbol_table[sub_operand.symbol]
@@ -421,9 +421,9 @@ class IRGen:
         # set right operand
         right_ssa = self.ir_gen_operand(expr, "right")
         
-        ccnot_op = self.builder.insert(CCNotOp.from_value(left_ssa, right_ssa, self.symbol_table[initOp_ssa._name])).res
-        ccnot_op._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
-        self.declare(ccnot_op._name, ccnot_op)
+        ccnotOP_ssa = self.builder.insert(CCNotOp.from_value(left_ssa, right_ssa, self.symbol_table[initOp_ssa._name])).res
+        ccnotOP_ssa._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
+        self.declare(ccnotOP_ssa._name, ccnotOP_ssa)
 
         if isinstance(expr.left, UnaryOp):
             self.restore_qubit(expr, "left")
@@ -431,9 +431,10 @@ class IRGen:
         if isinstance(expr.right, UnaryOp):
             self.restore_qubit(expr, "right")
         
-        return ccnot_op
+        return ccnotOP_ssa
     
     # generation of an operand for the or operation
+    # it returns the name by which the ssa value is identified in the symboltable
     def ir_gen_operand_or(self, expr: BinaryOp, side: str) -> str:
 
         if side == "left":
@@ -479,7 +480,8 @@ class IRGen:
         self.declare(declaration_name, notOp1_ssa)
         
         return declaration_name
-
+    
+    # generation of the or operation
     def ir_gen_or(self, expr: BinaryOp) -> SSAValue:
 
         # auxiliary SSAValue
@@ -490,6 +492,7 @@ class IRGen:
 
         self.declare(initOp_ssa._name, initOp_ssa)
         
+        # rigth and left operand of the or operation
         left_declaration_name = self.ir_gen_operand_or(expr, "left")
 
         right_declaration_name = self.ir_gen_operand_or(expr, "right")
@@ -515,7 +518,7 @@ class IRGen:
         notOp4_ssa._name = right_ssa._name.split('_')[0] + "_" + str(int(right_ssa._name.split('_')[1]) + 1)
         self.delete(right_declaration_name)
 
-        if isinstance(expr.right, NamedValue) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, NamedValue)):
+        if isinstance(expr.right, NamedValue) or (isinstance(expr.right, UnaryOp) and isinstance(expr.right.operand, NamedValue)):
             self.declare(right_declaration_name, notOp4_ssa)
         else:
             self.declare(notOp4_ssa._name, notOp4_ssa)
