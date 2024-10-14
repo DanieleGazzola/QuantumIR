@@ -151,7 +151,7 @@ class HGEDriver:
         self._known_ops[op] = op
         return
 
-    # simplify the block
+    # simplify the block, it sweeps all the operations in the block
     def _simplify_block(self, block: Block):
 
         for op in block.ops:

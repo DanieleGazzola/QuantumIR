@@ -8,6 +8,17 @@ from dialect.dialect import FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTIONS #####
 
+# avoid doing the transformation if it ends up in a CNOT or CCNOT operation with two equal operands.
+def has_degenerations(op: Operation, existing: Operation) -> bool:
+
+    for use in op.res.uses.copy():
+        if use.operation.name =="quantum.cnot" or use.operation.name =="quantum.ccnot":
+            if any(operand == existing.res for operand in use.operation.operands):
+                return True
+    
+    return False
+
+
 # check if the existing SSAValue(qubit) will be changed in the future
 def has_other_modifications(from_op: Operation) -> bool:
 
@@ -193,6 +204,7 @@ class CSEDriver:
 
         next_op = op.next_op
         
+        # change the name accordingly
         while next_op != None:
             if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
                 next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
@@ -215,7 +227,7 @@ class CSEDriver:
         # check if the operation is already known
         if existing := self._known_ops.get(op):
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
+            if not has_other_modifications(existing) and not has_read_after_write(op, existing) and not has_degenerations(op,existing):
                     self._replace_and_delete(op, existing)
                     return
         
