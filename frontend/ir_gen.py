@@ -308,6 +308,8 @@ class IRGen:
             if not(isinstance(operand.operand, NamedValue) and int(result_ssa._name[1]) < self.n_args and int(result_ssa._name[-1])%2 != 0):
                 result_ssa = self.ir_gen_unary(operand)
         
+        self.declare(result_ssa._name, result_ssa)
+        
         return result_ssa
     
     # every time we negate a qubit, after the operation we restore its original state
@@ -360,23 +362,20 @@ class IRGen:
         # In the case of two consecutive xor (a^b^c), instead of allocating 2 new qubits we use just one.
         # we can do it only if the two operands are not both named values 
         # also we need left and right to be either a NamedValue or a Xor operation or a Not operation
-        check1 = (isinstance(expr.right, NamedValue) or expr.right.op == "BinaryXor" or expr.right.op == "BitWiseNot") # need to be True
-        check2 = (isinstance(expr.left, NamedValue) or expr.left.op == "BinaryXor" or expr.left.op == "BitWiseNot")    # need to be True
-        check3 = (isinstance(expr.right, NamedValue) and isinstance(expr.left, NamedValue))                            # need to be False
 
-        # if possible write on left qubit
-        if isinstance(expr.left, BinaryOp) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, BinaryOp)):
-            ssa_name = left_ssa._name
-
-            cnotOp2_ssa = self.builder.insert(CNotOp.from_value(right_ssa, self.symbol_table[ssa_name])).res
-            cnotOp2_ssa._name = ssa_name.split('_')[0] + "_" + str(int(ssa_name.split('_')[1]) + 1)
-
-            self.declare(cnotOp2_ssa._name, cnotOp2_ssa)
         # try to write on right qubit
-        elif isinstance(expr.right, BinaryOp) or (isinstance(expr.right, UnaryOp) and isinstance(expr.right.operand, BinaryOp)):
+        if isinstance(expr.right, BinaryOp) or (isinstance(expr.right, UnaryOp) and isinstance(expr.right.operand, BinaryOp)):
             ssa_name = right_ssa._name
 
             cnotOp2_ssa = self.builder.insert(CNotOp.from_value(left_ssa, self.symbol_table[ssa_name])).res
+            cnotOp2_ssa._name = ssa_name.split('_')[0] + "_" + str(int(ssa_name.split('_')[1]) + 1)
+
+            self.declare(cnotOp2_ssa._name, cnotOp2_ssa)
+        # if possible write on left qubit
+        elif isinstance(expr.left, BinaryOp) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, BinaryOp)):
+            ssa_name = left_ssa._name
+
+            cnotOp2_ssa = self.builder.insert(CNotOp.from_value(right_ssa, self.symbol_table[ssa_name])).res
             cnotOp2_ssa._name = ssa_name.split('_')[0] + "_" + str(int(ssa_name.split('_')[1]) + 1)
 
             self.declare(cnotOp2_ssa._name, cnotOp2_ssa)

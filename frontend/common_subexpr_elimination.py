@@ -1,23 +1,13 @@
 from xdsl.ir import Operation, Block, Region, BlockArgument, OpResult
-from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
+from xdsl.dialects.builtin import ModuleOp, UnregisteredOp, IntegerType
 from xdsl.passes import ModulePass
+from xdsl.builder import Builder
 from xdsl.rewriter import Rewriter
 from xdsl.traits import IsolatedFromAbove
 from dataclasses import dataclass
-from dialect.dialect import FuncOp, MeasureOp, InitOp
+from dialect.dialect import FuncOp, MeasureOp, InitOp, CCNotOp, CNotOp
 
                             ##### SUPPORT FUNCTIONS #####
-
-# avoid doing the transformation if it ends up in a CNOT or CCNOT operation with two equal operands.
-def has_degenerations(op: Operation, existing: Operation) -> bool:
-
-    for use in op.res.uses.copy():
-        if use.operation.name =="quantum.cnot" or use.operation.name =="quantum.ccnot":
-            if any(operand == existing.res for operand in use.operation.operands):
-                return True
-    
-    return False
-
 
 # check if the existing SSAValue(qubit) will be changed in the future
 def has_other_modifications(from_op: Operation) -> bool:
@@ -185,6 +175,8 @@ class CSEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
+    builder: Builder
+    max_qubit: int = 0
 
     def __init__(self):
         self._rewriter = Rewriter()
@@ -223,13 +215,26 @@ class CSEDriver:
         # never simplify these types of operations
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
+
+        if isinstance(op, CCNotOp) and (op.control1 == op.control2):
+            self.builder = Builder.before(op)
+            cnotOp = self.builder.insert(CNotOp.from_value(op.control1, op.target))
+            self._replace_and_delete(op, cnotOp)
+            cnotOp.res._name = op.res._name
+        
+        if isinstance(op, CNotOp) and (op.control == op.target):
+            self.builder = Builder.before(op)
+            initOp = self.builder.insert(InitOp.from_value(IntegerType(1)))
+            initOp.res._name = "q" + str(self.max_qubit + 1) + "_0"
+            self.max_qubit += 1
+            self._replace_and_delete(op, initOp)
     
         # check if the operation is already known
         if existing := self._known_ops.get(op):
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing) and not has_read_after_write(op, existing) and not has_degenerations(op,existing):
-                    self._replace_and_delete(op, existing)
-                    return
+            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
+                self._replace_and_delete(op, existing)
+                return
         
         # if the operation is not known we add it to the known operations
         self._known_ops[op] = op
@@ -237,6 +242,10 @@ class CSEDriver:
 
     # simplify the block
     def _simplify_block(self, block: Block):
+        
+        for op in block.ops:
+            if isinstance(op, InitOp):
+                self.max_qubit = max(self.max_qubit, int(op.res._name.split('_')[0][1:]))
 
         for op in block.ops:
             if op.regions:
