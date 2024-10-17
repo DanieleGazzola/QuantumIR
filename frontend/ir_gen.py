@@ -148,9 +148,12 @@ class IRGen:
 
         # add a MeasureOp for each output argument of the function
         for var in proto_return:
-            measure = self.builder.insert(MeasureOp.from_value(self.symbol_table[var.internalSymbol])).res
-            measure._name = str(self.symbol_table[var.internalSymbol]._name.split('_')[0]) + "_" + str(int(self.symbol_table[var.internalSymbol]._name.split('_')[1]) + 1)
-
+            try:
+                measure = self.builder.insert(MeasureOp.from_value(self.symbol_table[var.internalSymbol])).res
+                measure._name = str(self.symbol_table[var.internalSymbol]._name.split('_')[0]) + "_" + str(int(self.symbol_table[var.internalSymbol]._name.split('_')[1]) + 1)
+            except:
+                raise IRGenError(f"Variable {var.internalSymbol} not found in the symbol table, may be uninitilized output var")
+       
         self.symbol_table = None
         self.builder = parent_builder
 
@@ -381,6 +384,7 @@ class IRGen:
             self.declare(cnotOp2_ssa._name, cnotOp2_ssa)
         # allocate a new qubit
         else:
+            
             initOp_ssa = self.ir_gen_new_qubit(expr)
             initOp_ssa._name = "q" + str(self.n_qubit) + "_0"
             self.n_qubit += 1                    

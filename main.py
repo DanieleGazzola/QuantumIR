@@ -2,6 +2,7 @@ import os
 
 import JSON_to_DataClasses
 from xdsl.printer import Printer
+from frontend.in_placing import InPlacing
 from frontend.ir_gen import IRGen
 
 from frontend.common_subexpr_elimination import CommonSubexpressionElimination
@@ -73,26 +74,39 @@ class QuantumIR():
 
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
-            second_module = module.clone()
+            clone_module = module.clone()
             CommonSubexpressionElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if len(second_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nCommon subexpression elimination")
                 Printer().print_op(module)
 
-            end_module = module.clone()
+            clone_module = module.clone()
             HermitianGatesElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if len(end_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nHermitian elimination")
                 Printer().print_op(module)
+
+            clone_module = module.clone() 
+            PatternRewriteWalker(InPlacing()).rewrite_module(module)
+            
+            # check if any inplacing has been done
+            if len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+                print("\n\nInplacing")
+                Printer().print_op(module)
+            
+            PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
+
 
             # check if there were no changes in the last iteration
             if len(start_module.body.block._first_op.body.block.ops) == len(module.body.block._first_op.body.block.ops):
                 print("\n\nNo more transformations possible\n")
                 break
+            
+
 
         # Final IR
         print("\nFinal IR:\n")

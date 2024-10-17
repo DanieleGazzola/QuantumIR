@@ -4,7 +4,7 @@ clear
 
 cd build
 
-./verilog_to_json ../test-inputs/cse.sv
+./verilog_to_json ../test-inputs/xorInPlace.sv
 
 cd ..
 

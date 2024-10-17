@@ -216,14 +216,18 @@ class CSEDriver:
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
+        # check if CCNotOp has two equal control qubits.
+        # In that case we can replace it with a CNotOp
         if isinstance(op, CCNotOp) and (op.control1 == op.control2):
             self.builder = Builder.before(op)
             cnotOp = self.builder.insert(CNotOp.from_value(op.control1, op.target))
             self._replace_and_delete(op, cnotOp)
             cnotOp.res._name = op.res._name
         
+        # check if CNotOp has equal control and target qubits.
+        # In that case we can replace it with an InitOp
         if isinstance(op, CNotOp) and (op.control == op.target):
-            self.builder = Builder.before(op)
+            self.builder= Builder.before(op)
             initOp = self.builder.insert(InitOp.from_value(IntegerType(1)))
             initOp.res._name = "q" + str(self.max_qubit + 1) + "_0"
             self.max_qubit += 1
