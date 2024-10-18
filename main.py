@@ -12,6 +12,10 @@ from frontend.qubit_renumber import QubitRenumber
 from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp
 
+
+
+
+
                     ############# MAIN PROGRAM #############
                     
 class QuantumIR():
@@ -19,6 +23,7 @@ class QuantumIR():
     json_path : str = 'build/output.json'
     dataclass_output: str = 'test-outputs/dataclass_ast.txt'
     output_dir : str = 'test-outputs'
+    ir_output_file: str = 'test-outputs/ir.txt'
     root : JSON_to_DataClasses.Root
     module : ModuleOp
 
@@ -105,12 +110,11 @@ class QuantumIR():
             if len(start_module.body.block._first_op.body.block.ops) == len(module.body.block._first_op.body.block.ops):
                 print("\n\nNo more transformations possible\n")
                 break
-            
-
-
-        # Final IR
+        
+         # Final IR
         print("\nFinal IR:\n")
         Printer().print_op(module)
+        print("\n\n")
 
 # Run
 quantum_ir = QuantumIR()
