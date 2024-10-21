@@ -95,7 +95,7 @@ class QuantumIR():
                 print("\n\nHermitian elimination")
                 Printer().print_op(module)
 
-            clone_module = module.clone() 
+            clone_module = module.clone()
             PatternRewriteWalker(InPlacing()).rewrite_module(module)
             
             # check if any inplacing has been done

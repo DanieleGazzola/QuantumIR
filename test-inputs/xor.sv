@@ -7,6 +7,7 @@ module Module(input logic a, b,
 
     assign out2 = a & ~temp1;
     
+    
 endmodule
 
 

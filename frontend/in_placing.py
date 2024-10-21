@@ -31,18 +31,22 @@ class InPlacing(RewritePattern):
     # match the cnot chain and rewrite it
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
         self.rewriter = rewriter
-
+        
         previous_op = op._prev_op
         # start of the program
         if previous_op is None:
             return
+
         # if the previous op is a quantum.init and the current is a quantum.cnot
         # we have a candidate for the optimization
         if previous_op.name == "quantum.init" and op.name == "quantum.cnot":
             cnot_list = [] # list for the cnot chain
             cnot_list.append(op)
             next_op = op._next_op
-            while (next_op.name == "quantum.cnot"):
+            while ((next_op.name == "quantum.cnot" or next_op.name == "quantum.not") and op.res._name.split('_')[0] == next_op.res._name.split('_')[0]):
+                if next_op.name =="quantum.not":
+                    next_op = next_op._next_op
+                    continue
                 cnot_list.append(next_op)
                 next_op = next_op._next_op
             
@@ -67,6 +71,7 @@ class InPlacing(RewritePattern):
             # fix the names
             for cnot in cnot_list:
                 cnot.res._name = cnot.target._name.split('_')[0] + "_" + str(int(cnot.target._name.split('_')[1]) + 1)
+
             # erase the init and the cnot with the unused control
             self.rewriter.erase_op(cnot_unused_control)
             self.rewriter.erase_op(previous_op)
