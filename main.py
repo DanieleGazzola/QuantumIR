@@ -9,6 +9,7 @@ from frontend.common_subexpr_elimination import CommonSubexpressionElimination
 from frontend.remove_unused_op import RemoveUnusedOperations
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from frontend.qubit_renumber import QubitRenumber
+from frontend.ccnot_decomposition import CCnot_decomposition
 from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp
 
@@ -115,9 +116,19 @@ class QuantumIR():
         print("\nFinal IR:\n")
         Printer().print_op(module)
         print("\n\n")
+    
+    def metric_transformation(self):
+
+        PatternRewriteWalker(CCnot_decomposition()).rewrite_module(self.module)
+        print("\n\nCCNOT decomposition:\n")
+        Printer().print_op(self.module)
+        print("\n\n")
+
 
 # Run
 quantum_ir = QuantumIR()
 quantum_ir.run_dataclass()
 quantum_ir.run_generate_ir()
 quantum_ir.run_transformations()
+
+quantum_ir.metric_transformation()

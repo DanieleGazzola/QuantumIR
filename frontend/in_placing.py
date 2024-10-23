@@ -2,8 +2,6 @@ from xdsl.ir import Operation
 from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.builder import Builder
 from xdsl.rewriter import Rewriter
-from xdsl.ir import SSAValue
-from dialect.dialect import CNotOp
 
 # Class to drive the removal of unused operations in the main program.
 class InPlacing(RewritePattern):

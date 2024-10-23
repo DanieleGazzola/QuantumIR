@@ -131,6 +131,51 @@ class FuncOp(IRDLOperation):
         attributes: dict[str, Attribute] = { "func_name": StringAttr(name) }
         return super().__init__(attributes=attributes, regions=[region])
 
+# Operations for metrics measurement
+@irdl_op_definition
+class TGateOp(IRDLOperation):
+
+    name = "quantum.t"
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    res: OpResult = result_def()
+
+    def __init__(self, target: SSAValue):
+        super().__init__(result_types=[IntegerType(1)], operands=[target])
+
+    @staticmethod
+    def from_value(target: SSAValue) -> TGateOp:
+        return TGateOp(target)
+    
+# Operations for metrics measurement
+@irdl_op_definition
+class TCrossGateOp(IRDLOperation):
+
+    name = "quantum.tcross"
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    res: OpResult = result_def()
+
+    def __init__(self, target: SSAValue):
+        super().__init__(result_types=[IntegerType(1)], operands=[target])
+
+    @staticmethod
+    def from_value(target: SSAValue) -> TGateOp:
+        return TCrossGateOp(target)
+    
+
+@irdl_op_definition
+class HadamardOp(IRDLOperation):
+    
+        name = "quantum.h"
+        target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+        res: OpResult = result_def()
+    
+        def __init__(self, target: SSAValue):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+    
+        @staticmethod
+        def from_value(target: SSAValue) -> HadamardOp:
+            return HadamardOp(target)
+
 
 Quantum = Dialect(
     "quantum",
@@ -141,6 +186,9 @@ Quantum = Dialect(
         CCNotOp,
         MeasureOp,
         FuncOp,
+        TGateOp,
+        TCrossGateOp,
+        HadamardOp
     ],
     [],
 )
