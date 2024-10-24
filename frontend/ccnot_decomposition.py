@@ -3,7 +3,7 @@ from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.builder import Builder
 from xdsl.rewriter import Rewriter
 
-from dialect.dialect import HadamardOp, TGateOp,TCrossGateOp, CNotOp, MeasureOp,InitOp
+from dialect.dialect import HadamardOp, TGateOp,TDaggerGateOp, CNotOp, MeasureOp,InitOp
 
 # pattern rewriting pass to transform CCNOT operations in a sequence of CNOT, Hadamard and T-gate operations
 # in order to use existing metrics for the evaluation of the circuit performances.
@@ -39,18 +39,18 @@ class CCnot_decomposition(RewritePattern):
             h1_res = h1.res
             cnot1_res = self.builder.insert(CNotOp.from_value(control2, h1_res)).res
 
-            tcross1_res = self.builder.insert(TCrossGateOp.from_value(cnot1_res)).res
+            tcross1_res = self.builder.insert(TDaggerGateOp.from_value(cnot1_res)).res
             cnot2_res = self.builder.insert(CNotOp.from_value(control1, tcross1_res)).res
 
             t1_res = self.builder.insert(TGateOp.from_value(cnot2_res)).res
             cnot3_res = self.builder.insert(CNotOp.from_value(control2, t1_res)).res
 
-            tcross2_res = self.builder.insert(TCrossGateOp.from_value(cnot3_res)).res
+            tcross2_res = self.builder.insert(TDaggerGateOp.from_value(cnot3_res)).res
 
             cnot4_res = self.builder.insert(CNotOp.from_value(control1, tcross2_res)).res
             cnot5_res = self.builder.insert(CNotOp.from_value(control1, control2)).res
 
-            tcross3_res = self.builder.insert(TCrossGateOp.from_value(cnot5_res)).res
+            tcross3_res = self.builder.insert(TDaggerGateOp.from_value(cnot5_res)).res
             cnot6_res = self.builder.insert(CNotOp.from_value(control1, tcross3_res)).res
 
             # new control1
@@ -96,12 +96,10 @@ class CCnot_decomposition(RewritePattern):
             target_state = int(target._name.split("_")[1])
 
             # go back to the last use of the qubit you want to measure
-            print(op)
             while previous is not None:
                 prev_res_number = previous.res._name.split("_")[0]
                 prev_res_state = int(previous.res._name.split("_")[1])
                 # if it's the one you want to measure and it's in a more advanced state that the one you have
-                print(previous.res._name, target._name) 
                 if prev_res_number == target_number and prev_res_state > target_state:
 
                     self.builder = Builder.before(op)

@@ -131,7 +131,9 @@ class FuncOp(IRDLOperation):
         attributes: dict[str, Attribute] = { "func_name": StringAttr(name) }
         return super().__init__(attributes=attributes, regions=[region])
 
-# Operations for metrics measurement
+### Operations for metrics measurement
+
+# T-Gate operation. Unitary gate applied on target qubit.
 @irdl_op_definition
 class TGateOp(IRDLOperation):
 
@@ -140,28 +142,36 @@ class TGateOp(IRDLOperation):
     res: OpResult = result_def()
 
     def __init__(self, target: SSAValue):
-        super().__init__(result_types=[IntegerType(1)], operands=[target])
-
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
     @staticmethod
     def from_value(target: SSAValue) -> TGateOp:
         return TGateOp(target)
-    
-# Operations for metrics measurement
-@irdl_op_definition
-class TCrossGateOp(IRDLOperation):
 
-    name = "quantum.tcross"
+# TDagger-Gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class TDaggerGateOp(IRDLOperation):
+
+    name = "quantum.tdagger"
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
 
     def __init__(self, target: SSAValue):
-        super().__init__(result_types=[IntegerType(1)], operands=[target])
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
 
     @staticmethod
     def from_value(target: SSAValue) -> TGateOp:
-        return TCrossGateOp(target)
+        return TDaggerGateOp(target)
     
 
+# Hadamard gate operation. Unitary gate applied on target qubit.
 @irdl_op_definition
 class HadamardOp(IRDLOperation):
     
@@ -170,7 +180,11 @@ class HadamardOp(IRDLOperation):
         res: OpResult = result_def()
     
         def __init__(self, target: SSAValue):
-            super().__init__(result_types=[IntegerType(1)], operands=[target])
+            if isinstance(target.type, IntegerType):
+                super().__init__(result_types=[IntegerType(1)], operands=[target])
+            else: # VectorType
+                size=target.type.get_shape()[0]
+                super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
     
         @staticmethod
         def from_value(target: SSAValue) -> HadamardOp:
@@ -187,7 +201,7 @@ Quantum = Dialect(
         MeasureOp,
         FuncOp,
         TGateOp,
-        TCrossGateOp,
+        TDaggerGateOp,
         HadamardOp
     ],
     [],
