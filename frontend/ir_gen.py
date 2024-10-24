@@ -7,7 +7,6 @@ from xdsl.builder import Builder
 from xdsl.dialects import builtin
 from xdsl.dialects.builtin import ModuleOp, IntegerType, VectorType
 from xdsl.ir import Block, Region, SSAValue
-from xdsl.irdl import IRDLOperation
 
 import re
 
@@ -289,8 +288,7 @@ class IRGen:
     def ir_gen_named_value(self, expr: NamedValue) -> SSAValue:
         namedValue_ssa = self.symbol_table[expr.symbol]
 
-        # If the qubit has been negated, and it needs the original qubit
-        # we negate it again
+        # If the qubit has been negated and the NamedValue is an input argument, negate it again.
         if int(namedValue_ssa._name[-1])%2 != 0 and int(namedValue_ssa._name[1]) < self.n_args: # odd status number and an input argument
             self.delete(expr.symbol)
             not_ssa = self.builder.insert(NotOp.from_value(namedValue_ssa)).res
@@ -370,8 +368,11 @@ class IRGen:
         return initOp_ssa
 
     # Generation of a XOR operation.
-    # a XOR b (a ^ b) is implemented in the quantum world as two CNot controlled one by a and one by b, both
-    # writing on a newly instantiated qubit, initialized to zero.
+    # a XOR b (a ^ b) is implemented in the quantum world by:
+    # - creating a third qubit initialized to zero
+    # - applying a CNot controlled by a, writing on the third qubit
+    # - applying a CNot controlled by b, wrtiting again on the third qubit
+    # - the third qubit is the result of the XOR.
     def ir_gen_xor(self, expr: BinaryOp) -> SSAValue:
         
         # Set left operand
@@ -429,8 +430,10 @@ class IRGen:
         return cnotOp2_ssa
 
     # Generation of an AND operation.
-    # a AND b (a & b) is implemented in the quantum world as one CCNot controlled by both a and b, writing
-    # on a newly instantiated third qubit initialized to zero.
+    # a AND b (a & b) is implemented in the quantum world bu:
+    # - creating a third qubit initialized to zero
+    # - applying a CCNot controlled by both a and b, writing on the third qubit.
+    # - the third qubit is the result of the AND.
     def ir_gen_and(self, expr: BinaryOp) -> SSAValue:
 
         # Initialize a new qubit or a new qubit register
@@ -520,10 +523,12 @@ class IRGen:
     
     # Generation of the or operation.
     # a OR b (a | b) is implemented in the quantum world by:
+    # - creating a third qubit initialized to zero
     # - negating both a and b 
-    # - applying a CCNot controlled by the negated value of the two operands writing on a newly instantiated 
-    #   third qubit initialized to zero
-    # - negating again a and b and also the CCNot target qubit.
+    # - applying a CCNot controlled by the negated value of the two operands writing on the third qubit
+    # - negating again a and b 
+    # - negating also the third qubit
+    # - the final value of the third qubit is the result of the OR.
     def ir_gen_or(self, expr: BinaryOp) -> SSAValue:
 
         # Auxiliary SSAValue
@@ -549,13 +554,14 @@ class IRGen:
         notOp3_ssa._name = left_ssa._name.split('_')[0] + "_" + str(int(left_ssa._name.split('_')[1]) + 1)
         self.delete(left_declaration_name)
 
-        # If it's a Named Value or a UnaryOp acting on a NamedValue declare it with 
+        # If it's a Named Value or a UnaryOp acting on a NamedValue declare it with the name returned by
+        # ir_gen_operand_or.
         if isinstance(expr.left, NamedValue) or (isinstance(expr.left, UnaryOp) and isinstance(expr.left.operand, NamedValue)):
             self.declare(left_declaration_name, notOp3_ssa)
-        else:
+        else: # else use the NotOp name.
             self.declare(notOp3_ssa._name, notOp3_ssa)
 
-        # Create the final NOT on the right operand
+        # Create the final NOT on the right operand.
         notOp4_ssa = self.builder.insert(NotOp.from_value(right_ssa)).res
         notOp4_ssa._name = right_ssa._name.split('_')[0] + "_" + str(int(right_ssa._name.split('_')[1]) + 1)
         self.delete(right_declaration_name)
@@ -565,7 +571,7 @@ class IRGen:
         else:
             self.declare(notOp4_ssa._name, notOp4_ssa)
 
-        # Create the final NOT on the target qubit of the CCNot
+        # Create the final NOT on the target qubit of the CCNot.
         notOp5_ssa = self.builder.insert(NotOp.from_value(ccnotOp_ssa)).res
         notOp5_ssa._name = ccnotOp_ssa._name.split('_')[0] + "_" + str(int(ccnotOp_ssa._name.split('_')[1]) + 1)
 
@@ -579,6 +585,6 @@ class IRGen:
 
         return notOp5_ssa
 
-    # Error message generation
+    # Error message generation.
     def error(self, message: str, cause: Exception | None = None) -> NoReturn:
         raise IRGenError(message) from cause

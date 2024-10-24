@@ -3,5 +3,5 @@ module ccnotTransform(
     output logic out1,out2);
 
     assign out1 = (a & d);
-    assign out2 = b ^c;
+    assign out2 = b ^ c;
 endmodule
