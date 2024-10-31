@@ -2,13 +2,11 @@ module xorInPlace (
     input logic a,
     input logic b,
     input logic c,
-    wire f,
     input logic d,
     output logic y,
-    output logic z
-);
-    logic temp1;
+    output logic z);
 
-    assign y =  ~(a ^ b ^ ~(c & d));
-    assign z = c;
+    assign y =  ~(a ^ b ^ ~(c & d) ^ b);
+    assign z = c & (a ^ b);
+    
 endmodule

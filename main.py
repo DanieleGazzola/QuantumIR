@@ -9,22 +9,23 @@ from frontend.common_subexpr_elimination import CommonSubexpressionElimination
 from frontend.remove_unused_op import RemoveUnusedOperations
 from frontend.hermitian_gates_transformation import HermitianGatesElimination
 from frontend.qubit_renumber import QubitRenumber
+from frontend.ccnot_decomposition import CCnot_decomposition
 from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp
-
-
-
-
 
                     ############# MAIN PROGRAM #############
                     
 class QuantumIR():
     
+    # Where to find the json
     json_path : str = 'build/output.json'
+    # Where to output the dataclass AST
     dataclass_output: str = 'test-outputs/dataclass_ast.txt'
+    # General output directory
     output_dir : str = 'test-outputs'
-    ir_output_file: str = 'test-outputs/ir.txt'
+    # Dataclass AST root
     root : JSON_to_DataClasses.Root
+    # MLIR root
     module : ModuleOp
 
     def __init__(self):
@@ -115,9 +116,22 @@ class QuantumIR():
         print("\nFinal IR:\n")
         Printer().print_op(module)
         print("\n\n")
+    
+    # transform ccnot gates in a composition of hadamard, tgate and cnot gates
+    # in order to apply metrics for validation
+    def metrics_transformation(self):
+
+        PatternRewriteWalker(CCnot_decomposition()).rewrite_module(self.module)
+        print("\n\nCCNOT decomposition:\n")
+        Printer().print_op(self.module)
+        print("\n\n")
+
 
 # Run
 quantum_ir = QuantumIR()
 quantum_ir.run_dataclass()
 quantum_ir.run_generate_ir()
+quantum_ir.run_transformations()
+
+quantum_ir.metrics_transformation()
 quantum_ir.run_transformations()

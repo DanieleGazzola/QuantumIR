@@ -131,6 +131,65 @@ class FuncOp(IRDLOperation):
         attributes: dict[str, Attribute] = { "func_name": StringAttr(name) }
         return super().__init__(attributes=attributes, regions=[region])
 
+### Operations for metrics measurement
+
+# T-Gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class TGateOp(IRDLOperation):
+
+    name = "quantum.t"
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    res: OpResult = result_def()
+
+    def __init__(self, target: SSAValue):
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+    @staticmethod
+    def from_value(target: SSAValue) -> TGateOp:
+        return TGateOp(target)
+
+# TDagger-Gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class TDaggerGateOp(IRDLOperation):
+
+    name = "quantum.tdagger"
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    res: OpResult = result_def()
+
+    def __init__(self, target: SSAValue):
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+
+    @staticmethod
+    def from_value(target: SSAValue) -> TGateOp:
+        return TDaggerGateOp(target)
+    
+
+# Hadamard gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class HadamardOp(IRDLOperation):
+    
+        name = "quantum.h"
+        target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+        res: OpResult = result_def()
+    
+        def __init__(self, target: SSAValue):
+            if isinstance(target.type, IntegerType):
+                super().__init__(result_types=[IntegerType(1)], operands=[target])
+            else: # VectorType
+                size=target.type.get_shape()[0]
+                super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+    
+        @staticmethod
+        def from_value(target: SSAValue) -> HadamardOp:
+            return HadamardOp(target)
+
 
 Quantum = Dialect(
     "quantum",
@@ -141,6 +200,9 @@ Quantum = Dialect(
         CCNotOp,
         MeasureOp,
         FuncOp,
+        TGateOp,
+        TDaggerGateOp,
+        HadamardOp
     ],
     [],
 )
