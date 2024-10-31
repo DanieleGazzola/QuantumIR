@@ -74,7 +74,7 @@ class Instance:
 @dataclass
 class InstanceBody:
     kind: str
-    members: List[Union['Port', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'ProceduralBlock']]
+    members: List[Union['Port', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'ProceduralBlock', 'Net']]
     definition: str
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -85,6 +85,21 @@ class NamedValue:
     type: str
     symbol: str
     constant: Optional[str] = None
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+@dataclass
+class Net:
+    kind: str
+    type: str
+    netType: 'NetType'
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+@dataclass
+class NetType:
+    kind: str
+    type: str
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -180,6 +195,10 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
             return InstanceBody(members=from_dict(data['members']), definition=data['definition'], **common_fields)
         elif kind == 'NamedValue':
             return NamedValue(type=data['type'], symbol=data['symbol'], constant=data.get('constant', None), **common_fields)
+        elif kind == 'Net':
+            return Net(type=data['type'], netType=from_dict(data['netType']), **common_fields)
+        elif kind == 'NetType':
+            return NetType(type=data['type'], **common_fields)
         elif kind == 'Port':
             return Port(type=data['type'], direction=data['direction'], internalSymbol=data['internalSymbol'], **common_fields)
         elif kind == 'PrimitiveInstance':
@@ -295,6 +314,8 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
     elif isinstance(ast, list):
         for item in ast:
             lines.extend(format_ast(item, indent))
+    elif isinstance(ast, Net):
+        lines.append(indent_str + f"  NetType: {ast.netType.type}" + f"  Name: {ast.name}")
     else:
         append_info(" ", ast)
     

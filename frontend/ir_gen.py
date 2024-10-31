@@ -190,7 +190,28 @@ class IRGen:
             return self.ir_gen_bin_op(assignment)
         if isinstance(assignment.right, UnaryOp):    # unary operation
             return self.ir_gen_unary_op(assignment)
+        if isinstance(assignment.right, NamedValue): # copy of a variable
+            return self.ir_gen_copy(assignment)
     
+    # copy of a variable
+    def ir_gen_copy(self, expr: Assignment) -> SSAValue:
+
+        # create a new qubit
+        initOp_ssa = self.builder.insert(InitOp.from_value(IntegerType(1))).res
+        initOp_ssa._name = "q" + str(self.n_qubit) + "_0"
+        self.n_qubit += 1                    
+            
+        self.declare(initOp_ssa._name, initOp_ssa)
+
+        # copy the value of the variable
+        cnotOp_ssa = self.builder.insert(CNotOp.from_value(self.symbol_table[expr.right.symbol], initOp_ssa)).res
+        cnotOp_ssa._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
+
+        self.declare(cnotOp_ssa._name, cnotOp_ssa)
+        self.declare(expr.left.symbol, cnotOp_ssa)
+
+        return cnotOp_ssa
+
     # initialization of a new qubit
     def ir_gen_init(self) -> SSAValue:
 
