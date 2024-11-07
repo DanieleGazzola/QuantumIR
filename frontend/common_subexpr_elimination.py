@@ -17,8 +17,10 @@ def has_other_modifications(from_op: Operation) -> bool:
     # check on every operation until the end
     while next_op != None:
 
-        # if the operation is an InitOp surely it will not change the SSAValue 
-        if not isinstance(next_op, InitOp):
+        # if the operation is an InitOp surely it will not change the SSAValue
+        # also, do not consider MeasureOp since their always at the end and the
+        # way they modify the qubit does not impact other operations. 
+        if not isinstance(next_op, InitOp) and not isinstance(next_op,MeasureOp):
 
             # if we find a modification of the qubit we don't substitute
             if next_op.target == from_op.res:
