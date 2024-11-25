@@ -133,5 +133,5 @@ quantum_ir.run_dataclass()
 quantum_ir.run_generate_ir()
 quantum_ir.run_transformations()
 
-quantum_ir.metrics_transformation()
-quantum_ir.run_transformations()
+# quantum_ir.metrics_transformation()
+# quantum_ir.run_transformations()
