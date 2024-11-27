@@ -4,7 +4,6 @@ module FullAdder(input logic a, b,c,
     logic temp1,temp2;
 
     assign temp1 = a ^ b;
-    assign temp1 = a ^ b;
-    assign out = a & temp1;
+    assign out = a ^ b ^ temp1;
 
 endmodule

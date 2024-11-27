@@ -2,6 +2,7 @@ from xdsl.ir import Operation
 from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.builder import Builder
 from xdsl.rewriter import Rewriter
+from dialect.dialect import CNotOp
 
 # Class to drive the removal of unused operations in the main program.
 class InPlacing(RewritePattern):
@@ -58,8 +59,6 @@ class InPlacing(RewritePattern):
             # The first unused qubit is the one we are gonna write on.
             cnot_unused_control = self.unused_operand(cnot_list)
 
-
-
             # All current control qubits are used, can't optimize.
             if cnot_unused_control is None:
                 return   
@@ -68,19 +67,15 @@ class InPlacing(RewritePattern):
 
             # In the other cnots, substitute the result of cnot with the unused qubit with the unused qubit.
             qubit_to_pass = unused_qubit
+            builder = Builder.before(cnot_list[0])
             for cnot in cnot_list:
-                # If the cnot is not the one with the control to write on and is not already changed.
-                if cnot.control != unused_qubit and cnot.target._name != qubit_to_pass._name:
-                    cnot.target.replace_by(qubit_to_pass)
-                    cnot.res._name = cnot.target._name.split('_')[0] + "_" + str(int(cnot.target._name.split('_')[1]) + 1)
-                    qubit_to_pass = cnot.res
-                elif cnot.control == unused_qubit:
-                    cnot.res.replace_by(qubit_to_pass)
+                if cnot is not cnot_unused_control:
+                    newcnot = builder.insert(CNotOp.from_value(cnot.control, qubit_to_pass))
+                    newcnot.res._name = qubit_to_pass._name.split('_')[0] + "_" + str(int(qubit_to_pass._name.split('_')[1]) + 1)
+                    qubit_to_pass = newcnot.res
 
-            # Fix the names.
-            for cnot in cnot_list:
-                cnot.res._name = cnot.target._name.split('_')[0] + "_" + str(int(cnot.target._name.split('_')[1]) + 1)
-            
-            # Erase the init and the cnot with the unused control.
-            self.rewriter.erase_op(cnot_unused_control)
-            self.rewriter.erase_op(previous_op)
+            cnot_list[-1].res.replace_by(qubit_to_pass)
+
+            for cnot in reversed(cnot_list):
+                self.rewriter.erase_op(cnot)  
+

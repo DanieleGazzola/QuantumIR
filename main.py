@@ -107,6 +107,7 @@ class QuantumIR():
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
 
+
             # check if there were no changes in the last iteration
             if len(start_module.body.block._first_op.body.block.ops) == len(module.body.block._first_op.body.block.ops):
                 print("\n\nNo more transformations possible\n")

@@ -3,10 +3,9 @@ module xorInPlace (
     input logic b,
     input logic c,
     input logic d,
-    output logic y,
-    output logic z);
+    input logic e,
+    output logic y,output logic z);
 
-    assign y =  ~(a ^ b ^ ~(c & d) ^ b);
-    assign z = c & (a ^ b);
-    
+    assign y =  (a ^ b ^ (c & e) ^ (d & e));
+    assign z = a & e;
 endmodule
