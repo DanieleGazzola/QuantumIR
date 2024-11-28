@@ -27,6 +27,7 @@ from JSON_to_DataClasses import (
     UnaryOp,
     ContinuousAssign,
     Conversion,
+    IntegerLiteral,
     Instance,
     InstanceBody,
     NamedValue,
@@ -185,7 +186,7 @@ class IRGen:
     def ir_gen_assign(self, assignment: Assignment) -> SSAValue:
 
         if isinstance(assignment.right, Conversion): # initialization of a variable
-            return self.ir_gen_init()
+            return self.ir_gen_init(assignment)
         if isinstance(assignment.right, BinaryOp):   # binary operation
             return self.ir_gen_bin_op(assignment)
         if isinstance(assignment.right, UnaryOp):    # unary operation
@@ -213,7 +214,7 @@ class IRGen:
         return cnotOp_ssa
 
     # Initialization of a new qubit
-    def ir_gen_init(self) -> SSAValue:
+    def ir_gen_init(self, expr: Assignment) -> SSAValue:
 
         # Insert the InitOp
         initOp_ssa = self.builder.insert(InitOp.from_value(IntegerType(1))).res
@@ -224,6 +225,16 @@ class IRGen:
 
         # Add the new SSAValue(qubit) in the symbol_table
         self.declare(initOp_ssa._name, initOp_ssa)
+
+        # negate it if the value is 1
+        if expr.right.constant == "1'b1":
+            self.delete(initOp_ssa._name)
+            notOp_ssa = self.builder.insert(NotOp.from_value(initOp_ssa)).res
+            notOp_ssa._name = initOp_ssa._name.split('_')[0] + "_" + str(int(initOp_ssa._name.split('_')[1]) + 1)
+            initOp_ssa = notOp_ssa
+
+        # Add the new SSAValue(qubit) in the symbol_table
+        self.declare(expr.left.symbol, initOp_ssa)
 
         return initOp_ssa
     
@@ -258,6 +269,30 @@ class IRGen:
 
         elif isinstance(expr.operand, BinaryOp):                # Not of a binary operation
             operand = self.ir_gen_bin(expr.operand)
+            self.delete(operand._name)
+
+        elif isinstance(expr.operand, Conversion):              # assign "hand-made" value
+            # generate a new qubit
+
+            # Insert the InitOp
+            initOp_ssa = self.builder.insert(InitOp.from_value(IntegerType(1))).res
+
+            # Set the name of the qubit
+            initOp_ssa._name = "q" + str(self.n_qubit) + "_0"
+            self.n_qubit += 1
+
+            # Add the new SSAValue(qubit) in the symbol_table
+            self.declare(initOp_ssa._name, initOp_ssa)
+
+            operand = initOp_ssa
+
+            # negate it if the value is 1
+            if expr.operand.constant == "1'b1":
+                self.delete(operand._name)
+                notOp_ssa = self.builder.insert(NotOp.from_value(operand)).res
+                notOp_ssa._name = operand._name.split('_')[0] + "_" + str(int(operand._name.split('_')[1]) + 1)
+                operand = notOp_ssa
+
             self.delete(operand._name)
         
         # Insert the NotOp
@@ -339,6 +374,8 @@ class IRGen:
             # If it is not a NamedValue or it's not an input argument or it's not with an odd status number.
             if not(isinstance(unary_operand, NamedValue) and int(result_ssa._name.split("_")[1]) < self.n_args and int(result_ssa._name.split("_")[1])%2 != 0):
                 result_ssa = self.ir_gen_unary(operand)
+        elif isinstance(operand, Conversion):
+            result_ssa = self.ir_gen_named_value(operand.operand)
         
         self.declare(result_ssa._name, result_ssa)
         
