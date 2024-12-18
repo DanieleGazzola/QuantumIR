@@ -4,11 +4,15 @@ clear
 
 cd build
 
-totest=and
+dirinput=crypto_benchmarks/
+
+totest=adder_32bit_untilsat
 
 rm -f ../test-outputs/${totest}.out
 
-./verilog_to_json ../test-inputs/$totest.sv >> ../test-outputs/${totest}.out
+touch ../test-outputs/${totest}.out
+
+./verilog_to_json ../test-inputs/${dirinput}${totest}.sv >> ../test-outputs/${totest}.out
 
 exit_code=$?
 
