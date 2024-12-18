@@ -38,7 +38,7 @@ class UnaryOp:
     kind: str
     type: str
     op: str
-    operand: Union['NamedValue', 'BinaryOp']
+    operand: Union['NamedValue', 'BinaryOp', 'Conversion']
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -59,7 +59,7 @@ class ContinuousAssign:
 class Conversion:
     kind: str
     type: str
-    operand: Union['Conversion','NamedValue']
+    operand: Union['Conversion','NamedValue','IntegerLiteral']
     constant: Optional[str] = None
     name: Optional[str] = None
     addr: Optional[int] = None
@@ -76,6 +76,15 @@ class InstanceBody:
     kind: str
     members: List[Union['Port', 'PrimitiveInstance', 'Variable', 'ContinuousAssign', 'ProceduralBlock', 'Net']]
     definition: str
+    name: Optional[str] = None
+    addr: Optional[int] = None
+
+@dataclass
+class IntegerLiteral:
+    kind: str
+    type: str
+    value: str
+    constant: str
     name: Optional[str] = None
     addr: Optional[int] = None
 
@@ -215,6 +224,8 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
             return ExpressionStatement(expr=from_dict(data['expr']), **common_fields)
         elif kind == "List":
             return [from_dict(item) for item in data['list']]
+        elif kind == "IntegerLiteral":
+            return IntegerLiteral(type=data['type'], value=data['value'], constant=data['constant'], **common_fields)
         else:
             raise ValueError(f"Unknown kind: {kind}")
     return data
@@ -316,6 +327,8 @@ def format_ast(ast: ASTNode, indent: int = 0) -> str:
             lines.extend(format_ast(item, indent))
     elif isinstance(ast, Net):
         lines.append(indent_str + f"  NetType: {ast.netType.type}" + f"  Name: {ast.name}")
+    elif isinstance(ast, IntegerLiteral):
+        lines.append(indent_str + f"  Value: {ast.value}")
     else:
         append_info(" ", ast)
     
