@@ -1,43 +1,68 @@
-from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
-from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
-from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
+from xdsl.ir import Operation, Block, Region, BlockArgument, OpResult
+from xdsl.dialects.builtin import ModuleOp, UnregisteredOp, IntegerType
 from xdsl.passes import ModulePass
+from xdsl.builder import Builder
 from xdsl.rewriter import Rewriter
-from xdsl.traits import EffectInstance, IsolatedFromAbove
-
+from xdsl.traits import IsolatedFromAbove
 from dataclasses import dataclass
-
-from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
+from dialect.dialect import FuncOp, MeasureOp, InitOp, CCNotOp, CNotOp
 
                             ##### SUPPORT FUNCTIONS #####
 
-# check if the operation is dead
-def is_trivially_dead(op: Operation) -> bool:
-
-    # these types of operations are never dead
-    if isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
-        return False
-    
-    # if the result of the operation is never used then it is dead
-    return not op.res.uses
-
-
-
-# check if the existing SSAValue will be changed in the future
-# if not we can safely use it to replace the current operation
+# check if the existing SSAValue(qubit) will be changed in the future
 def has_other_modifications(from_op: Operation) -> bool:
 
-    effects = set[EffectInstance]()
     next_op = from_op.next_op
 
-    # check on every operation until the end of the function
-    while not isinstance(next_op, MeasureOp):
-        effects = GetMemoryEffect.get_effects(next_op)
-        
-        # il the op is an InitOp surely will not change the SSAValue 
+    # check on every operation until the end
+    while next_op != None:
+
+        # if the operation is an InitOp surely it will not change the SSAValue
+        # also, do not consider MeasureOp since their always at the end and the
+        # way they modify the qubit does not impact other operations. 
+        if not isinstance(next_op, InitOp) and not isinstance(next_op,MeasureOp):
+
+            # if we find a modification of the qubit we don't substitute
+            if next_op.target == from_op.res:
+                return True
+            
+        next_op = next_op.next_op
+
+    return False
+
+# check if the existing SSAValue(qubit) will be read after the one we are substituting is modified
+# if not we can remap the operation we have on the second qubit to the first one,
+# deleting the second qubit
+def has_read_after_write(op: Operation, from_op: Operation) -> bool:
+
+    next_op = op.next_op
+
+    # check on every operation until the end
+    while next_op != None:
+
+        # if the operation is an InitOp surely it will not change the qubit
         if not isinstance(next_op, InitOp):
-            second_last_effect = list(effects)[-2]
-            if second_last_effect.value == from_op.res:
+
+            # if we find a modification of the second qubit we stop and now we check for reads on the first one
+            if next_op.target == op.res:
+                break
+
+        next_op = next_op.next_op
+    
+    # if we didn't find any write we can safely remap qubits
+    if next_op == None:
+        return False
+    
+    next_op = next_op.next_op
+
+    # check on every operation until the end
+    while next_op != None:
+
+        # if the operation is an InitOp surely it will not read the qubit 
+        if not isinstance(next_op, InitOp):
+
+            # if we find any use of the first qubit we cannot remap
+            if any(attr == from_op.res for attr in next_op.operands):
                 return True
             
         next_op = next_op.next_op
@@ -46,7 +71,11 @@ def has_other_modifications(from_op: Operation) -> bool:
 
 
                             ##### CLASSES TO HELP CSE MANAGMENT #####
-        
+   
+# OperationInfo is a class that contains the operation and some useful information about it.
+# It is used to compute the hash of the operations for the knownOps dictionary and to implement transformation-specific logic when two
+# operation are equal.
+# The hash is used by the dictionary KnownOps to check if two OperationInfo are equal.      
 @dataclass
 class OperationInfo:
 
@@ -97,20 +126,22 @@ class OperationInfo:
             else:
                 return None
 
-        return hash(all_operands)
+        return all_operands
 
     def __hash__(self):
         return hash(
             (
                 self.name,
-                hash(self.result_types),
+                self.result_types,
                 self.hash_operands()
             )
         )
 
     def __eq__(self, other: object):
         return hash(self) == hash(other)
-
+    
+# A dictionary used to store the passed operations during the MLIR traversing.
+# OperationInfo is the key, Operation is the value.
 class KnownOps:
 
     _known_ops: dict[OperationInfo, Operation]
@@ -146,6 +177,8 @@ class CSEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
+    builder: Builder
+    max_qubit: int = 0
 
     def __init__(self):
         self._rewriter = Rewriter()
@@ -159,15 +192,22 @@ class CSEDriver:
     # and delete the current operation
     def _replace_and_delete(self, op: Operation, existing: Operation):
 
-        def wasVisited(use: Use):
-            return use.operation not in self._known_ops
-
         # replace all future uses of the current operation results with the existing one
         for o, n in zip(op.results, existing.results, strict=True):
-            if all(wasVisited(u) for u in o.uses):
-                o.replace_by(n)
+            o.replace_by(n)
 
-        # if there are no uses delete the operationS
+        next_op = op.next_op
+        
+        # change the name accordingly
+        while next_op != None:
+            if next_op.res._name.split('_')[0] == op.res._name.split('_')[0]:
+                next_op.res._name = existing.res._name.split('_')[0] + "_" + next_op.res._name.split('_')[1]
+            for attr in next_op.operands:
+                if attr._name.split('_')[0] == op.results[0]._name.split('_')[0]:
+                    attr._name = existing.results[0]._name.split('_')[0] + "_" + next_op.results[0]._name.split('_')[1]
+            next_op = next_op.next_op
+
+        # if there are no uses delete the operation
         if all(not r.uses for r in op.results):
             self._commit_erasure(op)
 
@@ -178,10 +218,27 @@ class CSEDriver:
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
+        # check if CCNotOp has two equal control qubits.
+        # In that case we can replace it with a CNotOp
+        if isinstance(op, CCNotOp) and (op.control1 == op.control2):
+            self.builder = Builder.before(op)
+            cnotOp = self.builder.insert(CNotOp.from_value(op.control1, op.target))
+            self._replace_and_delete(op, cnotOp)
+            cnotOp.res._name = op.res._name
+        
+        # check if CNotOp has equal control and target qubits.
+        # In that case we can replace it with an InitOp
+        if isinstance(op, CNotOp) and (op.control == op.target):
+            self.builder= Builder.before(op)
+            initOp = self.builder.insert(InitOp.from_value(IntegerType(1)))
+            initOp.res._name = "q" + str(self.max_qubit + 1) + "_0"
+            self.max_qubit += 1
+            self._replace_and_delete(op, initOp)
+    
         # check if the operation is already known
         if existing := self._known_ops.get(op):
-            # if the existing op will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing):
+            # if the existing op(qubit) will not be changed in the future we can replace the current operation
+            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
                 self._replace_and_delete(op, existing)
                 return
         
@@ -191,6 +248,10 @@ class CSEDriver:
 
     # simplify the block
     def _simplify_block(self, block: Block):
+        
+        for op in block.ops:
+            if isinstance(op, InitOp):
+                self.max_qubit = max(self.max_qubit, int(op.res._name.split('_')[0][1:]))
 
         for op in block.ops:
             if op.regions:
@@ -235,13 +296,7 @@ class CSEDriver:
 
 
 
-                            ##### MAIN CLASSES TO INVOKE THE TRANSFORMATIONS #####
-
-class RemoveUnusedOperations(RewritePattern):
-
-    def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
-        if is_trivially_dead(op) and op.parent is not None:
-            rewriter.erase_op(op)
+                            ##### MAIN CLASS TO INVOKE THE TRANSFORMATION #####
 
 class CommonSubexpressionElimination(ModulePass):
 

@@ -1,51 +1,47 @@
-from xml.etree.ElementTree import tostring
-from xdsl.ir import Operation, Block, Region, Use, BlockArgument, OpResult
+from xdsl.ir import Operation, Block, Region
 from xdsl.dialects.builtin import ModuleOp, UnregisteredOp
 from xdsl.passes import ModulePass
 from xdsl.rewriter import Rewriter
-from xdsl.traits import EffectInstance, IsolatedFromAbove
+from xdsl.traits import IsolatedFromAbove
 
 from dataclasses import dataclass
 
-from dialect.dialect import GetMemoryEffect, FuncOp, MeasureOp, InitOp
+from dialect.dialect import FuncOp, MeasureOp, InitOp
 
                             ##### SUPPORT FUNCTION #####
 
-
-# check if the existing SSAValue will be changed in the future
-# if not we can safely use it to replace the current operation
+# check if the qubit has uses in between the two operation we want to eliminate
+# if not we can safely delete the two operations as they commute
 def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
-
-    my_effects = set[EffectInstance]()
-    effects = set[EffectInstance]()
+    
     next_op = from_op.next_op
 
-    my_effects = GetMemoryEffect.get_effects(from_op)
-
-    # check on every operation until the end of the function, top to bottom
+    # check on every operation until the target operation
     while not next_op is to_op:
-        effects = GetMemoryEffect.get_effects(next_op)
-        # il the op is an InitOp surely will not change the SSAValue 
+
+        # if the operation is an InitOp surely it will not use the existing qubit 
         if not isinstance(next_op, InitOp):
-            for effect in effects:
-                if effect.value == from_op.res:
-                    
-                    return True
-        
-            second_last_effect = list(effects)[-2]
-            if any([second_last_effect.value == effect.value for effect in my_effects]):
-                return True    
+
+            # if we find the SSAValue is used in any way we don't delete
+            for operand in next_op.operands:
+                if operand._name == from_op.res._name:
+                    return True  
+                
         next_op = next_op.next_op
 
     return False
 
 
                             ##### CLASSES TO HELP CSE MANAGMENT #####
-        
+
+# OperationInfo is a class that contains the operations
+# The hash is used by the dictionary KnownOps to check if two OperationInfo are equal       
 @dataclass
 class OperationInfo:
 
     op: Operation
+
+    hash: int = 0
 
     @property
     def name(self):
@@ -59,38 +55,17 @@ class OperationInfo:
     def operands(self):
         return self.op.operands._op._operands
     
-    # hash the operands of the operation
-    # in order for two operation to match they must have the same identical control qubits.
-    def hash_operands(self):
-        operands = tuple()
-        if(self.op.name =="quantum.cnot"):
-            operands += (self.op.control,)
-        elif(self.op.name =="quantum.ccnot"):
-            operands += (self.op.control1,self.op.control2,)
-        # if it is a quantum.not the target do not need to match. The only thing to match is the second target
-        # with the firt result (checked in eq)
-        return hash(operands)
-    
-    # this function is used to check if two hashes match
-    # computes the hash of the name and the operation operands.
+    # compute the hash of the operation
     def __hash__(self):
-        return hash(
-            (
-                self.name,
-                self.hash_operands(),
-            )
-        )
+        self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name.split('_')[0]))
+        return self.hash
     
-    # other is the second operation matched, self is the first
-    # qui non ho messo nessun tipo di logica, ho notato che quando facciamo una get confronta automaticamente le chiavi usando
-    # hash. Di conseguenza lì già matcha solo le operazioni con lo stesso nome e gli stessi operandi di controllo ( e il loro numero).
-    # In questo eq ho semplicemente messo il confronto tra le due operazioni su target e result.
+    # check if two operation are enough equal to be analized
     def __eq__(self, other: object):
-        value = (self.name == other.name and  # same name
-                self.result_types == other.result_types and # same result types
-                other.op.target == self.op.res) # other target is my result
-        return value
+        return self.hash == other.hash
 
+# A dictionary used to store the passed operations
+# OperationInfo is the key, Operation is the value
 class KnownOps:
 
     _known_ops: dict[OperationInfo, Operation]
@@ -118,38 +93,34 @@ class KnownOps:
     def pop(self, k: Operation):
         return self._known_ops.pop(OperationInfo(k))
 
-
-
                             ##### CLASS TO MANAGE HGE TRANSFORMATIONS #####
 
+# This class drives the logic of the transformation
 class HGEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
-    n = 0
+    
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
 
+    # delete an operation
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
             self._rewriter.erase_op(op)
 
-    # replace the SSAValue of the current operation with the existing one
-    # and delete the current operation
+    # replace the SSAValue of the current operation with the existing one and delete the current operation
     def _replace_and_delete(self, op: Operation, existing: Operation):
 
-        def wasVisited(use: Use):
-            return use.operation not in self._known_ops
-
         # replace all future uses of the current operation results with the existing one
-        # !!! ORRIBLE SOLUTION WITH THE TUPLE else TypeError: OpResult not iterable
         for o, n in zip([op.results,], [existing.target,], strict=True):
-            if all(wasVisited(u) for u in o[0].uses):
-                o[0].replace_by(n)
+            o[0].replace_by(n)
 
-        # if there are no uses delete the operationS
+        # if there are no uses delete the operations
+        # also remove op from the _know_ops to avoid getting matched again
         if all(not r.uses for r in op.results):
+            self._known_ops.pop(op)
             self._commit_erasure(op)
             self._commit_erasure(existing)
 
@@ -157,12 +128,21 @@ class HGEDriver:
     def _simplify_operation(self, op: Operation):
 
         # never simplify these types of operations
-        if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
+        if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp):
+            return
+        
+        # renaming of the state of the qubits if any trasformation has changed the temporal sequence
+        if int(op.res._name.split('_')[1]) != int(op.target._name.split('_')[1]) + 1:
+            op.res._name = op.res._name.split('_')[0] + '_' + str(int(op.target._name.split('_')[1]) + 1)
+
+        # MeasureOp can need a rename but is never simplified
+        if isinstance(op, MeasureOp):
             return
 
         # check if the operation is already known
         if existing := self._known_ops.get(op):
-            # if the existing op will not be changed in the future we can replace the current operation
+
+            # if the qubit is not used in between we can delete the operations
             if not has_uses_between(existing, op):
                 self._replace_and_delete(op, existing)
                 return
@@ -171,7 +151,7 @@ class HGEDriver:
         self._known_ops[op] = op
         return
 
-    # simplify the block
+    # simplify the block, it sweeps all the operations in the block
     def _simplify_block(self, block: Block):
 
         for op in block.ops:
@@ -215,8 +195,9 @@ class HGEDriver:
             case Region():
                 self._simplify_region(thing)
 
-                            ##### MAIN CLASSES TO INVOKE THE TRANSFORMATION #####
+                            ##### MAIN CLASS TO INVOKE THE TRANSFORMATION #####
 
+# This class is used to apply the transformation to the MLIR in the main program
 class HermitianGatesElimination(ModulePass):
 
     def apply(self, op: ModuleOp) -> None:

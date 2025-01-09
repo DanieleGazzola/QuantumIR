@@ -1,7 +1,15 @@
-module not_gate (
-    input logic a,
-    input logic b, 
-    output logic y
+module notTransformations(
+    input  logic a, b,
+    output logic out1, out2
 );
-    assign y = ~ (a & b);
+
+    logic temp1;
+
+    assign out1 = ~a | b;
+    assign temp1 = a ^ b;
+    assign out2 = a | ~temp1;
+    
 endmodule
+
+
+

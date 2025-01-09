@@ -1,26 +1,19 @@
 from __future__ import annotations
 
-from typing import ClassVar, TypeVar
+from typing import TypeVar
 
 from xdsl.dialects.builtin import IntegerType, StringAttr, VectorType,IntegerAttr
 from xdsl.ir import Dialect, OpResult, SSAValue, Region, Attribute
-from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def, traits_def
-from xdsl.traits import MemoryEffect, MemoryEffectKind, EffectInstance, OpTrait
-from xdsl.dialects import arith
+from xdsl.irdl import IRDLOperation, Operand, attr_def, irdl_op_definition, operand_def, result_def, region_def
 
-class GetMemoryEffect(MemoryEffect):
 
-    @classmethod
-    def get_effects(cls, op: IRDLOperation) -> set[EffectInstance] | None:
-        return op.traits
-
+# Operation to initialize a qubit (or a vector of them) to zero
 @irdl_op_definition
 class InitOp(IRDLOperation):
 
     name = "quantum.init"
     value: IntegerType = attr_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, values):
         # Determine if values is a single IntegerType or a VectorType of IntegerType
@@ -32,50 +25,38 @@ class InitOp(IRDLOperation):
             attributes = {"type": values,"value": IntegerAttr(0,IntegerType(1))}   
         elif isinstance(values, VectorType):
             # Vector of IntegerType case
-            element_type=values.get_element_type()
-            size=values.get_shape()[0]
-            result_types= [VectorType(element_type, [size,])]     
-            attributes = {"type": values,"value": IntegerAttr(0,IntegerType(size))}
-        else:
+            result_types= [VectorType(values.get_element_type(), [values.get_shape()[0],])]     
+            attributes = {"type": values,"value": IntegerAttr(0,IntegerType(values.get_shape()[0]))}
+        else: 
             raise TypeError("Expected IntegerType or VectorType(IntegerType) for values")
 
         super().__init__(result_types=result_types, attributes=attributes)
-        self.traits = [EffectInstance(MemoryEffectKind.ALLOC, self.res)]
            
     @staticmethod
     def from_value(value) -> InitOp:
         return InitOp(value)
-    
-    def verify(self):
-    # Ensure the result type matches the attribute type
-        if isinstance(self.values, IntegerType):
-            assert self.result_types[0] == IntegerType
-        elif isinstance(self.values, VectorType):
-            assert self.result_types[0] == VectorType(IntegerType, len(self.values))
-        else:
-            raise ValueError("Invalid attribute type")
 
+# Operation to apply the NOT gate to a qubit (or a vector of them)
 @irdl_op_definition
 class NotOp(IRDLOperation):
 
     name = "quantum.not"
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, target: SSAValue):
         if isinstance(target.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[target])
-        else:
+        else: # VectorType
             size=target.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
-        self.traits = [EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
     
     @staticmethod
     def from_value(value: SSAValue) -> NotOp:
         return NotOp(value)
     
-    
+# Operation to apply the CNOT gate to a qubit (or a vector of them)
+# the first qubit is the control one, the second is the target.
 @irdl_op_definition
 class CNotOp(IRDLOperation):
 
@@ -83,20 +64,20 @@ class CNotOp(IRDLOperation):
     control: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, control: SSAValue, target: SSAValue):
         if isinstance(control.type, IntegerType) and isinstance(target.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[control, target])
-        else:
+        else: # VectorType
             size = control.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control, target])
-        self.traits = [EffectInstance(MemoryEffectKind.READ, self.control), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
 
     @staticmethod
     def from_value(control: SSAValue, target: SSAValue) -> CNotOp:
         return CNotOp(control, target)
 
+# Operation to apply the CCNOT gate to a qubit (or a vector of them)
+# the first two qubits are the control ones, the third is the target.
 @irdl_op_definition
 class CCNotOp(IRDLOperation):
 
@@ -105,40 +86,39 @@ class CCNotOp(IRDLOperation):
     control2: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
     def __init__(self, control1: SSAValue, control2: SSAValue, target: SSAValue):
         if isinstance(control1.type, IntegerType) and isinstance(control2.type, IntegerType) and isinstance(target.type, IntegerType):
             super().__init__(result_types=[IntegerType(1)], operands=[control1, control2, target])
-        else:
+        else: # VectorType
             size = control1.type.get_shape()[0]
             super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[control1, control2, target])
-        self.traits = [EffectInstance(MemoryEffectKind.READ, self.control1), EffectInstance(MemoryEffectKind.READ, self.control2), EffectInstance(MemoryEffectKind.READ, self.target), EffectInstance(MemoryEffectKind.WRITE, self.res)]
-
+ 
     @staticmethod
     def from_value(control1: SSAValue, control2: SSAValue, target: SSAValue) -> CCNotOp:
         return CCNotOp(control1, control2, target)
 
+# Operation to measure a qubit (or a vector of them).
+# This operation is used at the end of the circuit on the output (qu)bits.
 @irdl_op_definition
 class MeasureOp(IRDLOperation):
 
     name = "quantum.measure"
-    value: Operand = operand_def(IntegerType(1))
+    target: Operand = operand_def(IntegerType(1))
     res: OpResult = result_def()
-    traits: ClassVar[frozenset[OpTrait]] = traits_def({OpTrait()})
 
-    def __init__(self, value: SSAValue):
-        if isinstance(value.type, IntegerType):
-            super().__init__(result_types=[IntegerType(1)], operands=[value])
-        else:
-            size=value.type.get_shape()[0]
-            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[value])
-        self.traits = [EffectInstance(MemoryEffectKind.WRITE, self.value)]
+    def __init__(self, target: SSAValue):
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
 
     @staticmethod
-    def from_value(value: SSAValue) -> MeasureOp:
-        return MeasureOp(value)
+    def from_value(target: SSAValue) -> MeasureOp:
+        return MeasureOp(target)
 
+# Operation to define a function
 @irdl_op_definition
 class FuncOp(IRDLOperation):
 
@@ -151,6 +131,65 @@ class FuncOp(IRDLOperation):
         attributes: dict[str, Attribute] = { "func_name": StringAttr(name) }
         return super().__init__(attributes=attributes, regions=[region])
 
+### Operations for metrics measurement
+
+# T-Gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class TGateOp(IRDLOperation):
+
+    name = "quantum.t"
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    res: OpResult = result_def()
+
+    def __init__(self, target: SSAValue):
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+    @staticmethod
+    def from_value(target: SSAValue) -> TGateOp:
+        return TGateOp(target)
+
+# TDagger-Gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class TDaggerGateOp(IRDLOperation):
+
+    name = "quantum.tdagger"
+    target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+    res: OpResult = result_def()
+
+    def __init__(self, target: SSAValue):
+        if isinstance(target.type, IntegerType):
+            super().__init__(result_types=[IntegerType(1)], operands=[target])
+        else: # VectorType
+            size=target.type.get_shape()[0]
+            super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+
+    @staticmethod
+    def from_value(target: SSAValue) -> TGateOp:
+        return TDaggerGateOp(target)
+    
+
+# Hadamard gate operation. Unitary gate applied on target qubit.
+@irdl_op_definition
+class HadamardOp(IRDLOperation):
+    
+        name = "quantum.h"
+        target: Operand = operand_def(TypeVar("AttributeInvT", bound=Attribute))
+        res: OpResult = result_def()
+    
+        def __init__(self, target: SSAValue):
+            if isinstance(target.type, IntegerType):
+                super().__init__(result_types=[IntegerType(1)], operands=[target])
+            else: # VectorType
+                size=target.type.get_shape()[0]
+                super().__init__(result_types=[VectorType(IntegerType(1),[size,])], operands=[target])
+    
+        @staticmethod
+        def from_value(target: SSAValue) -> HadamardOp:
+            return HadamardOp(target)
+
 
 Quantum = Dialect(
     "quantum",
@@ -161,6 +200,9 @@ Quantum = Dialect(
         CCNotOp,
         MeasureOp,
         FuncOp,
+        TGateOp,
+        TDaggerGateOp,
+        HadamardOp
     ],
     [],
 )
