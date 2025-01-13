@@ -4,9 +4,9 @@ clear
 
 cd build
 
-dirinput=crypto_benchmarks/
+dirinput=''
 
-totest=adder_32bit_untilsat
+totest=xorInPlace
 
 rm -f ../test-outputs/${totest}.out
 

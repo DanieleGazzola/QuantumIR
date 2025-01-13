@@ -56,25 +56,27 @@ class QuantumIR():
             formatted_ast = JSON_to_DataClasses.format_root(self.root)
             file.write("\n".join(formatted_ast))
 
-    def run_generate_ir(self):
-        # Generate IR
+    def run_generate_ir(self, print_output = True):
         ir_gen = IRGen()
+
         module = ir_gen.ir_gen_module(self.root)
         self.module = module
-        print("\nIR:\n")
-        Printer().print_op(self.module)
 
-    def run_transformations(self):
-        # Transformations
-        print("\n\nTransformations:")
+        if print_output:
+            print("\nIR:\n")
+            Printer().print_op(self.module)
+
+    def run_transformations(self, print_output = True):
+        if print_output:
+            print("\n\nTransformations:")
+
         module = self.module
         while True:
-
             start_module = module.clone()
             PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module)
 
             # check if any unused operations were removed
-            if len(start_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and len(start_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nRemoved unused operations")
                 Printer().print_op(module)
 
@@ -84,7 +86,7 @@ class QuantumIR():
             CommonSubexpressionElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nCommon subexpression elimination")
                 Printer().print_op(module)
 
@@ -92,7 +94,7 @@ class QuantumIR():
             HermitianGatesElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nHermitian elimination")
                 Printer().print_op(module)
 
@@ -100,7 +102,7 @@ class QuantumIR():
             PatternRewriteWalker(InPlacing()).rewrite_module(module)
             
             # check if any inplacing has been done
-            if len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
                 print("\n\nInplacing")
                 Printer().print_op(module)
             
@@ -110,29 +112,34 @@ class QuantumIR():
 
             # check if there were no changes in the last iteration
             if len(start_module.body.block._first_op.body.block.ops) == len(module.body.block._first_op.body.block.ops):
-                print("\n\nNo more transformations possible\n")
+                if print_output: 
+                    print("\n\nNo more transformations possible\n")
                 break
         
-         # Final IR
-        print("\nFinal IR:\n")
-        Printer().print_op(module)
-        print("\n\n")
+        # Final IR
+        if print_output:
+            print("\nFinal IR:\n")
+            Printer().print_op(module)
+            print("\n\n")
     
     # transform ccnot gates in a composition of hadamard, tgate and cnot gates
     # in order to apply metrics for validation
-    def metrics_transformation(self):
+    def metrics_transformation(self, print_output = True):
 
         PatternRewriteWalker(CCnot_decomposition()).rewrite_module(self.module)
-        print("\n\nCCNOT decomposition:\n")
-        Printer().print_op(self.module)
-        print("\n\n")
+
+        if print_output:
+            print("\n\nCCNOT decomposition:\n")
+            Printer().print_op(self.module)
+            print("\n\n")
 
 
-# Run
-quantum_ir = QuantumIR()
-quantum_ir.run_dataclass()
-quantum_ir.run_generate_ir()
-quantum_ir.run_transformations()
+# Only run this if the file is executed directly, not imported
+if __name__ == "__main__":
+    quantum_ir = QuantumIR()
+    quantum_ir.run_dataclass()
+    quantum_ir.run_generate_ir()
+    quantum_ir.run_transformations()
 
 # quantum_ir.metrics_transformation()
 # quantum_ir.run_transformations()
