@@ -194,3 +194,8 @@ for i in range(4):
 print("\n=========================================")
 print(f"\n{passed_tests} out of 4 tests passed.")
 
+if passed_tests == 4:
+    sys.exit(0)  # Success: all tests passed
+else:
+    sys.exit(1)  # Failure: one or more tests failed
+
