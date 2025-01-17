@@ -78,8 +78,13 @@ def has_read_after_write(op: Operation, from_op: Operation) -> bool:
 # The hash is used by the dictionary KnownOps to check if two OperationInfo are equal.      
 @dataclass
 class OperationInfo:
-
+    # operation for which we store the info
     op: Operation
+    # tuple containing the operands of the operation and their history in terms of operations generating
+    # the SSAValues
+    operandsHistory: tuple
+    # hash of the operation
+    hash: int
 
     @property
     def name(self):
@@ -96,7 +101,7 @@ class OperationInfo:
     # recursive function to get all the operands of an operation
     def sub_operand(self, operand: OpResult):
         all_operand = tuple()
-        all_operand += (operand.owner.name,)
+        all_operand += (operand.owner.name,) # take the name of the operation that use the operand
 
         for sub_operand in operand.owner.operands:
             if isinstance(sub_operand, BlockArgument):
@@ -111,8 +116,9 @@ class OperationInfo:
         
         return all_operand
     
-    # hash the operands of the operation
-    def hash_operands(self):
+    # Get the operands of the operation for which the OperationInfo is built
+    def __init__(self,op: Operation):
+        self.op=op
         all_operands = tuple()
 
         for operand in self.operands:
@@ -125,20 +131,24 @@ class OperationInfo:
                     all_operands += self.sub_operand(operand)
             else:
                 return None
+        #print("OperationInfo get_operands")
+        #print(self.op,all_operands)
 
-        return all_operands
+        self.operandsHistory = all_operands
+        self.hash= hash(self)
 
     def __hash__(self):
+        #print("Hashing ",self.op)
         return hash(
             (
                 self.name,
                 self.result_types,
-                self.hash_operands()
+                self.operandsHistory
             )
         )
 
     def __eq__(self, other: object):
-        return hash(self) == hash(other)
+        return self.hash == other.hash
     
 # A dictionary used to store the passed operations during the MLIR traversing.
 # OperationInfo is the key, Operation is the value.
@@ -152,22 +162,27 @@ class KnownOps:
         else:
             self._known_ops = dict(known_ops._known_ops)
 
-    def __getitem__(self, k: Operation):
-        return self._known_ops[OperationInfo(k)]
+    def __getitem__(self, k: OperationInfo):
+        #print("Getitem")
+        return self._known_ops[k]
 
-    def __setitem__(self, k: Operation, v: Operation):
-        self._known_ops[OperationInfo(k)] = v
+    def __setitem__(self, k: OperationInfo, v: Operation):
+        #print("Setitem")
+        self._known_ops[k] = v
 
-    def __contains__(self, k: Operation):
-        return OperationInfo(k) in self._known_ops
+    def __contains__(self, k: OperationInfo):
+        #print("Contains")
+        return k in self._known_ops
 
-    def get(self, k: Operation) -> Operation | None:
-        if op := self._known_ops.get(OperationInfo(k)):
+    def get(self, k: OperationInfo) -> Operation | None:
+        #print("Get")
+        if op := self._known_ops.get(k):
             return op
         return None
 
-    def pop(self, k: Operation):
-        return self._known_ops.pop(OperationInfo(k))
+    def pop(self, k: OperationInfo):
+        #print("Pop")
+        return self._known_ops.pop(k)
 
 
 
@@ -218,6 +233,9 @@ class CSEDriver:
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
+        #print("Inside _simplify_operation")
+        #print(op)
+
         # check if CCNotOp has two equal control qubits.
         # In that case we can replace it with a CNotOp
         if isinstance(op, CCNotOp) and (op.control1 == op.control2):
@@ -234,16 +252,17 @@ class CSEDriver:
             initOp.res._name = "q" + str(self.max_qubit + 1) + "_0"
             self.max_qubit += 1
             self._replace_and_delete(op, initOp)
-    
+
+        opInfo = OperationInfo(op)
         # check if the operation is already known
-        if existing := self._known_ops.get(op):
+        if existing := self._known_ops.get(opInfo): 
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
             if not has_other_modifications(existing) and not has_read_after_write(op, existing):
                 self._replace_and_delete(op, existing)
                 return
         
         # if the operation is not known we add it to the known operations
-        self._known_ops[op] = op
+        self._known_ops[opInfo] = op
         return
 
     # simplify the block
@@ -300,5 +319,10 @@ class CSEDriver:
 
 class CommonSubexpressionElimination(ModulePass):
 
+    cseDriver: CSEDriver
+
     def apply(self, op: ModuleOp) -> None:
-        CSEDriver().simplify(op)
+        self.cseDriver.simplify(op)
+
+    def __init__(self):
+        self.cseDriver = CSEDriver()
