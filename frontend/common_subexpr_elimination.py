@@ -7,6 +7,7 @@ from xdsl.traits import IsolatedFromAbove
 from dataclasses import dataclass
 from dialect.dialect import FuncOp, MeasureOp, InitOp, CCNotOp, CNotOp
 
+import re
                             ##### SUPPORT FUNCTIONS #####
 
 # check if the existing SSAValue(qubit) will be changed in the future
@@ -100,10 +101,13 @@ class OperationInfo:
 
     # recursive function to get all the operands of an operation
     def sub_operand(self, operand: OpResult):
-        all_operand = tuple()
+        all_operand = tuple() 
         all_operand += (operand.owner.name,) # take the name of the operation that use the operand
 
-        for sub_operand in operand.owner.operands:
+        # order according to qubit number in order to catch the same operation with different operand order
+        operandlist = sorted(operand.owner.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
+                             
+        for sub_operand in operandlist:
             if isinstance(sub_operand, BlockArgument):
                 all_operand += (sub_operand.index,)
             elif isinstance(sub_operand, OpResult):
@@ -120,8 +124,10 @@ class OperationInfo:
     def __init__(self,op: Operation):
         self.op=op
         all_operands = tuple()
+        # order according to qubit number in order to catch the same operation with different operand order
+        operandlist = sorted(self.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
 
-        for operand in self.operands:
+        for operand in operandlist:
             if isinstance(operand, BlockArgument):
                 all_operands += (operand.index,)
             elif isinstance(operand, OpResult):

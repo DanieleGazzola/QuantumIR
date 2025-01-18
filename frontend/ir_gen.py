@@ -238,13 +238,13 @@ class IRGen:
 
         return initOp_ssa
     
-    # Generation of a unary operation from verilog
+    # Generation of a unary operation from verilog from a direct assignment
     def ir_gen_unary_op(self, expr: Assignment) -> SSAValue:
         
         # Symbol from verilog
         symbol = expr.left.symbol
 
-        final_op_ssa = self.ir_gen_unary(expr.right)
+        final_op_ssa = self.ir_gen_unary(expr.right,directAssignment=True)
 
         # add the SSAValue to the symbol_table
         self.declare(symbol, final_op_ssa)
@@ -252,20 +252,20 @@ class IRGen:
         return final_op_ssa
 
     # Generation of a unary operation
-    def ir_gen_unary(self, expr: UnaryOp) -> SSAValue:
+    def ir_gen_unary(self, expr: UnaryOp,directAssignment: bool) -> SSAValue:
         
         if expr.op == "BitwiseNot":     # Not operation
-            unary_ssa = self.ir_gen_not(expr)
+            unary_ssa = self.ir_gen_not(expr, directAssignment)
             return unary_ssa
         else:
             raise IRGenError(f"Unknown unary operation {expr.op}")
         
     # Generation of a Not operation
-    def ir_gen_not(self, expr: UnaryOp) -> SSAValue:
+    def ir_gen_not(self, expr: UnaryOp,directAssignment: bool) -> SSAValue:
 
         if isinstance(expr.operand, NamedValue):                # not of a variable of the verilog (internal variable or input argument)           
             operand = self.symbol_table[expr.operand.symbol]
-            if(int(operand._name[1]) < self.n_args):
+            if(directAssignment == True and int(operand._name[1]) < self.n_args):
                 newSSA = self.builder.insert(InitOp.from_value(IntegerType(1))).res
                 newSSA._name = "q" + str(self.n_qubit) + "_0"
                 self.n_qubit += 1
@@ -309,7 +309,7 @@ class IRGen:
         # Add the SSAValue to the symbol_table
         if isinstance(expr.operand, NamedValue):
             self.declare(expr.operand.symbol, notOp_ssa) # key is the symbol they have in verilog
-            if(int(operand._name[1]) < self.n_args):
+            if(directAssignment==True and int(operand._name[1]) < self.n_args):
                 cnotOp_ssa = self.builder.insert(CNotOp.from_value(notOp_ssa, newSSA)).res
                 cnotOp_ssa._name = newSSA._name.split('_')[0] + "_" + str(int(newSSA._name.split('_')[1]) + 1)
                 notOp_ssa = cnotOp_ssa # change of the name to return the right value
@@ -382,7 +382,7 @@ class IRGen:
                 result_ssa = self.symbol_table[unary_operand.symbol]
             # If it is not a NamedValue or it's not an input argument or it's not with an odd status number.
             if not(isinstance(unary_operand, NamedValue) and int(result_ssa._name.split("_")[1]) < self.n_args and int(result_ssa._name.split("_")[1])%2 != 0):
-                result_ssa = self.ir_gen_unary(operand)
+                result_ssa = self.ir_gen_unary(operand,directAssignment=False)
         elif isinstance(operand, Conversion):
             result_ssa = self.ir_gen_named_value(operand.operand)
         
@@ -567,7 +567,7 @@ class IRGen:
                     operand_ssaValue = self.symbol_table[unary_operand.symbol]
                 # If it is not a NamedValue or it's not an input argument or it's not with an odd status number.
                 if not(isinstance(unary_operand, NamedValue) and int(operand_ssaValue._name[1]) < self.n_args and int(operand_ssaValue._name[-1])%2 != 0):
-                    operand_ssaValue = self.ir_gen_unary(operand)
+                    operand_ssaValue = self.ir_gen_unary(operand,directAssignment=False)
                 if isinstance(unary_operand, NamedValue):
                     self.delete(unary_operand.symbol)
                     
