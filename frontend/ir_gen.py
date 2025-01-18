@@ -67,7 +67,7 @@ class IRGen:
     # variables coming from the verilog have as key their symbol(1234567890 a), temporary SSAValues have as key their name(q4_7)
     symbol_table: ScopedSymbolTable | None = None
 
-    n_qubit: int = 0  # n_qubits that need to be used when generating the first IR
+    n_qubit: int = 0  # n_qubits that used when generating the first IR
     n_args: int = 0   # n_args taken as input in the verilog
     
     def __init__(self):
@@ -263,8 +263,13 @@ class IRGen:
     # Generation of a Not operation
     def ir_gen_not(self, expr: UnaryOp) -> SSAValue:
 
-        if isinstance(expr.operand, NamedValue):                # not of a variable of the verilog (internal variable or input argument)
+        if isinstance(expr.operand, NamedValue):                # not of a variable of the verilog (internal variable or input argument)           
             operand = self.symbol_table[expr.operand.symbol]
+            if(int(operand._name[1]) < self.n_args):
+                newSSA = self.builder.insert(InitOp.from_value(IntegerType(1))).res
+                newSSA._name = "q" + str(self.n_qubit) + "_0"
+                self.n_qubit += 1
+
             self.delete(expr.operand.symbol)
 
         elif isinstance(expr.operand, BinaryOp):                # Not of a binary operation
@@ -304,6 +309,10 @@ class IRGen:
         # Add the SSAValue to the symbol_table
         if isinstance(expr.operand, NamedValue):
             self.declare(expr.operand.symbol, notOp_ssa) # key is the symbol they have in verilog
+            if(int(operand._name[1]) < self.n_args):
+                cnotOp_ssa = self.builder.insert(CNotOp.from_value(notOp_ssa, newSSA)).res
+                cnotOp_ssa._name = newSSA._name.split('_')[0] + "_" + str(int(newSSA._name.split('_')[1]) + 1)
+                notOp_ssa = cnotOp_ssa # change of the name to return the right value
         elif isinstance(expr.operand, BinaryOp):
             self.declare(operand._name, notOp_ssa)       # key is the name of the SSAValue
         
