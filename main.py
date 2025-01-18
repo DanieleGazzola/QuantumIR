@@ -13,6 +13,8 @@ from frontend.ccnot_decomposition import CCnot_decomposition
 from xdsl.pattern_rewriter import PatternRewriteWalker
 from xdsl.dialects.builtin import ModuleOp
 
+import cProfile
+import pstats
                     ############# MAIN PROGRAM #############
                     
 class QuantumIR():
@@ -139,7 +141,11 @@ if __name__ == "__main__":
     quantum_ir = QuantumIR()
     quantum_ir.run_dataclass()
     quantum_ir.run_generate_ir()
-    quantum_ir.run_transformations()
+    cProfile.run("quantum_ir.run_transformations()","profile")
+    p = pstats.Stats("profile")
+    p.strip_dirs().sort_stats("cumulative").print_stats(20)
+    
+    p.strip_dirs().sort_stats("time").print_stats(20)
 
 # quantum_ir.metrics_transformation()
 # quantum_ir.run_transformations()
