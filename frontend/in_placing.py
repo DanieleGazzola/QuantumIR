@@ -21,6 +21,7 @@ class InPlacing(RewritePattern):
                 # if the control qubit is used
                 if control in next_op.operands:
                       used=True
+                      break
                 next_op = next_op.next_op
             
             if(used == False):

@@ -100,51 +100,62 @@ class OperationInfo:
         return self.op.operands._op._operands
 
     # recursive function to get all the operands of an operation
-    def sub_operand(self, operand: OpResult):
+    def sub_operand(self, operand: OpResult, qh : dict):
         all_operand = tuple() 
         all_operand += (operand.owner.name,) # take the name of the operation that use the operand
 
         # order according to qubit number in order to catch the same operation with different operand order
         operandlist = sorted(operand.owner.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
                              
+        # for every operand in the operation
         for sub_operand in operandlist:
-            if isinstance(sub_operand, BlockArgument):
-                all_operand += (sub_operand.index,)
-            elif isinstance(sub_operand, OpResult):
-                if isinstance(sub_operand.owner, InitOp):
+            operandHistory = qh.get(sub_operand._name) 
+            if(operandHistory is not None): # check if the operand history is already memorized
+                all_operand += operandHistory
+            elif isinstance(sub_operand, BlockArgument): # else if it is an input argument
+                all_operand += (sub_operand.index,) 
+            elif isinstance(sub_operand, OpResult): 
+                if isinstance(sub_operand.owner, InitOp): # if it is newly initialized
                     all_operand += (sub_operand.owner.name,)
-                else:
-                    all_operand += self.sub_operand(sub_operand)
+                else: # recursive call if it's the result of other operations
+                    all_operand += self.sub_operand(sub_operand) 
             else:
                 return None
         
         return all_operand
     
     # Get the operands of the operation for which the OperationInfo is built
-    def __init__(self,op: Operation):
+    def __init__(self,op: Operation,qh: dict):
         self.op=op
+
         all_operands = tuple()
         # order according to qubit number in order to catch the same operation with different operand order
         operandlist = sorted(self.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
 
         for operand in operandlist:
-            if isinstance(operand, BlockArgument):
+            operandHistory = qh.get(operand._name)
+            if(operandHistory is not None): # check if the operand history is already memorized
+                all_operands += operandHistory
+
+            elif isinstance(operand, BlockArgument):# else if it is an input argument
+                qh[operand._name] = (operand.index,) # add to dict
                 all_operands += (operand.index,)
             elif isinstance(operand, OpResult):
-                if isinstance(operand.owner, InitOp):
+                if isinstance(operand.owner, InitOp):# if it is newly initialized
+                    qh[operand._name] = (operand.owner.name,) # add to dict
                     all_operands += (operand.owner.name,)
                 else:
-                    all_operands += self.sub_operand(operand)
+                    all_operands += self.sub_operand(operand,qh)
             else:
                 return None
-        #print("OperationInfo get_operands")
-        #print(self.op,all_operands)
+        # add the result of the operation to the dict. Following operations using this result will find its
+        # history already memorized
+        qh[op.res._name] = (op.name,all_operands,)
 
         self.operandsHistory = all_operands
         self.hash= hash(self)
 
     def __hash__(self):
-        #print("Hashing ",self.op)
         return hash(
             (
                 self.name,
@@ -169,25 +180,20 @@ class KnownOps:
             self._known_ops = dict(known_ops._known_ops)
 
     def __getitem__(self, k: OperationInfo):
-        #print("Getitem")
         return self._known_ops[k]
 
     def __setitem__(self, k: OperationInfo, v: Operation):
-        #print("Setitem")
         self._known_ops[k] = v
 
     def __contains__(self, k: OperationInfo):
-        #print("Contains")
         return k in self._known_ops
 
     def get(self, k: OperationInfo) -> Operation | None:
-        #print("Get")
         if op := self._known_ops.get(k):
             return op
         return None
 
     def pop(self, k: OperationInfo):
-        #print("Pop")
         return self._known_ops.pop(k)
 
 
@@ -195,15 +201,25 @@ class KnownOps:
                             ##### CLASS TO MANAGE CSE TRANSFORMATIONS #####
 
 class CSEDriver:
-
+    # Rewriter used to modify MLIR
     _rewriter: Rewriter
+    # Dict of the already passed operations
     _known_ops: KnownOps = KnownOps()
+
+    # Dict with the history of the qubits in the program. History means what operation and input arguments
+    # generate these qubits.
+    # Key: qubit._name ; Value: tuple with the history
+    qubitHistories : dict[str,tuple]
+    
+    # Builder for inserting new operations
     builder: Builder
+    # counter for keeping track of the current highest qubit number
     max_qubit: int = 0
 
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
+        self.qubitHistories = {}
 
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
@@ -239,8 +255,6 @@ class CSEDriver:
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
-        #print("Inside _simplify_operation")
-        #print(op)
 
         # check if CCNotOp has two equal control qubits.
         # In that case we can replace it with a CNotOp
@@ -259,7 +273,8 @@ class CSEDriver:
             self.max_qubit += 1
             self._replace_and_delete(op, initOp)
 
-        opInfo = OperationInfo(op)
+        opInfo = OperationInfo(op,self.qubitHistories)
+
         # check if the operation is already known
         if existing := self._known_ops.get(opInfo): 
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
