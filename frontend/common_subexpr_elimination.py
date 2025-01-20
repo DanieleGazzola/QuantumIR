@@ -119,8 +119,7 @@ class OperationInfo:
                 all_hashes += (operandHashes,)
             else:
                 raise ValueError("Error, the operand is not in the dictionary")
-                return None
-        
+                        
         return all_operand,all_hashes
     
     # Get the operands of the operation for which the OperationInfo is built
@@ -154,7 +153,7 @@ class OperationInfo:
                     all_operands += (operand.owner.name,)
                     all_hashes += (currentHash,)
                 else:
-                    temp1,temp2 = self.sub_operand(operand,qh)
+                    temp1,temp2 = self.sub_operand(operand,qh,qHashes)
                     all_operands += temp1
                     all_hashes += temp2
             else:
