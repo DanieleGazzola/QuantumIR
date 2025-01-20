@@ -74,46 +74,56 @@ class QuantumIR():
 
         module = self.module
         while True:
-            start_module = module.clone()
+
+            start_len = len(module.body.block._first_op.body.block.ops)
+            
             PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module)
 
             # check if any unused operations were removed
-            if print_output and len(start_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and start_len != len(module.body.block._first_op.body.block.ops):
                 print("\n\nRemoved unused operations")
                 Printer().print_op(module)
+            else:
+                print("\n\nNo unused operations to remove\n")
 
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
-            clone_module = module.clone()
+            clone_len = len(module.body.block._first_op.body.block.ops)
             CommonSubexpressionElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if print_output and len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
                 print("\n\nCommon subexpression elimination")
                 Printer().print_op(module)
+            else:
+                print("\n\nNo common subexpressions to eliminate\n")
 
-            clone_module = module.clone()
+            clone_len = len(module.body.block._first_op.body.block.ops)
             HermitianGatesElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if print_output and len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
                 print("\n\nHermitian elimination")
                 Printer().print_op(module)
+            else:
+                print("\n\nNo Hermitian eliminations to be performed\n")
 
-            clone_module = module.clone()
+            clone_len = len(module.body.block._first_op.body.block.ops)
             PatternRewriteWalker(InPlacing()).rewrite_module(module)
             
             # check if any inplacing has been done
-            if print_output and len(clone_module.body.block._first_op.body.block.ops) != len(module.body.block._first_op.body.block.ops):
+            if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
                 print("\n\nInplacing")
                 Printer().print_op(module)
+            else:
+                print("\n\nNo inplacing to be performed\n")
             
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
 
 
             # check if there were no changes in the last iteration
-            if len(start_module.body.block._first_op.body.block.ops) == len(module.body.block._first_op.body.block.ops):
+            if start_len == len(module.body.block._first_op.body.block.ops):
                 if print_output: 
                     print("\n\nNo more transformations possible\n")
                 break
