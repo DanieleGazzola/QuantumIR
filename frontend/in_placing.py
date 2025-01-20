@@ -22,11 +22,13 @@ class InPlacing(RewritePattern):
 
                 current_userop = use.operation # operation using the control qubit
                 res_qbnumber = int(current_userop.res._name.split('_')[0][1:])
+                res_statusnumber = int(current_userop.res._name.split('_')[1])
                 control_qbnumber = int(control._name.split('_')[0][1:])
+                control_statusnumber =int(control._name.split('_')[1])  
                 # if the result of the operation using the control qubit is greater than the number of qubit instantiated
                 # until now or is equal to the control qubit number (it's using that qubit as a target), consider the control
                 # qubit used, since these operations are performed after the considered cnot list.
-                if res_qbnumber > self.maxqubit or res_qbnumber==control_qbnumber:
+                if res_qbnumber > self.maxqubit or (res_qbnumber==control_qbnumber and control_statusnumber < res_statusnumber):
                     used = True
                     break
             if not used:
