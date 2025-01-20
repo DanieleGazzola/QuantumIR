@@ -97,7 +97,7 @@ class QuantumIR():
                 Printer().print_op(module)
             else:
                 print("\n\nNo common subexpressions to eliminate\n")
-
+        
             clone_len = len(module.body.block._first_op.body.block.ops)
             HermitianGatesElimination().apply(module)
 
@@ -119,8 +119,6 @@ class QuantumIR():
                 print("\n\nNo inplacing to be performed\n")
             
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
-
-
 
             # check if there were no changes in the last iteration
             if start_len == len(module.body.block._first_op.body.block.ops):

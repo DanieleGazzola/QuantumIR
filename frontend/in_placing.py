@@ -91,6 +91,14 @@ class InPlacing(RewritePattern):
                     newcnot.res._name = qubit_to_pass._name.split('_')[0] + "_" + str(int(qubit_to_pass._name.split('_')[1]) + 1)
                     qubit_to_pass = newcnot.res
 
+            # Substitute the result of the last cnot with the unused qubit, with it's updated status.
+            for use in cnot_list[-1].res.uses:
+                current_op = use.operation
+                current_operands = current_op.operands
+                if cnot_list[-1].res == current_operands[-1]: # if it is used as a target change the name:
+                    current_operands[-1].res._name = qubit_to_pass._name.split('_')[0] + "_" + str(int(qubit_to_pass._name.split("_")[1]) + 1)
+            
+            
             cnot_list[-1].res.replace_by(qubit_to_pass)
 
             for cnot in reversed(cnot_list):

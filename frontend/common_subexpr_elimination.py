@@ -19,7 +19,7 @@ def has_other_modifications(from_op: Operation) -> bool:
     while next_op != None:
 
         # if the operation is an InitOp surely it will not change the SSAValue
-        # also, do not consider MeasureOp since their always at the end and the
+        # also, do not consider MeasureOp since they are always at the end and the
         # way they modify the qubit does not impact other operations. 
         if not isinstance(next_op, InitOp) and not isinstance(next_op,MeasureOp):
 
@@ -107,7 +107,8 @@ class OperationInfo:
         all_hashes += (hash(operand.owner.name),) # hash the name of the operation that use the operand
 
         # order according to qubit number in order to catch the same operation with different operand order
-        operandlist = sorted(operand.owner.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
+        # sort only the operands, not the result
+        operandlist = sorted(operand.owner.operands[:-1],key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1))) + [operand.owner.operands[-1]]
                              
         # for every operand in the operation
         for sub_operand in operandlist:
@@ -129,7 +130,8 @@ class OperationInfo:
         all_operands = tuple()
         all_hashes = tuple()
         # order according to qubit number in order to catch the same operation with different operand order
-        operandlist = sorted(self.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
+        # sort only the operands, not the result
+        operandlist = sorted(self.operands[:-1],key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1))) + [self.operands[-1]]
 
         for operand in operandlist:
             operandHistory = qh.get(operand._name)

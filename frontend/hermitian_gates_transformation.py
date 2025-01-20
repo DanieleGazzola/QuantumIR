@@ -43,6 +43,11 @@ class OperationInfo:
 
     hash: int = 0
 
+    def __init__(self, op: Operation):
+        self.op = op
+        self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name.split('_')[0]))
+    
+    
     @property
     def name(self):
         return self.op.name
@@ -57,7 +62,6 @@ class OperationInfo:
     
     # compute the hash of the operation
     def __hash__(self):
-        self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name.split('_')[0]))
         return self.hash
     
     # check if two operation are enough equal to be analized
@@ -135,7 +139,7 @@ class HGEDriver:
         if int(op.res._name.split('_')[1]) != int(op.target._name.split('_')[1]) + 1:
             op.res._name = op.res._name.split('_')[0] + '_' + str(int(op.target._name.split('_')[1]) + 1)
 
-        # MeasureOp can need a rename but is never simplified
+        # MeasureOp may need a rename but is never simplified
         if isinstance(op, MeasureOp):
             return
 
