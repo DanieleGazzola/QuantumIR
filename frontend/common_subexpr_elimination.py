@@ -85,7 +85,7 @@ class OperationInfo:
     # the SSAValues
     operandsHistory: tuple
     # hash of the operation
-    hash: int
+    _hash: int
 
     @property
     def name(self):
@@ -100,9 +100,11 @@ class OperationInfo:
         return self.op.operands._op._operands
 
     # recursive function to get all the operands of an operation
-    def sub_operand(self, operand: OpResult, qh : dict):
+    def sub_operand(self, operand: OpResult, qh : dict,qHashes:dict) -> tuple:
         all_operand = tuple() 
+        all_hashes = tuple()
         all_operand += (operand.owner.name,) # take the name of the operation that use the operand
+        all_hashes += (hash(operand.owner.name),) # hash the name of the operation that use the operand
 
         # order according to qubit number in order to catch the same operation with different operand order
         operandlist = sorted(operand.owner.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
@@ -110,62 +112,69 @@ class OperationInfo:
         # for every operand in the operation
         for sub_operand in operandlist:
             operandHistory = qh.get(sub_operand._name) 
-            if(operandHistory is not None): # check if the operand history is already memorized
+            operandHashes = qHashes.get(sub_operand._name)
+            # here the operand is in the dictionary since it is the result of an operation already passed in CSEDriver.
+            if(operandHistory is not None and operandHashes is not None): 
                 all_operand += operandHistory
-            elif isinstance(sub_operand, BlockArgument): # else if it is an input argument
-                all_operand += (sub_operand.index,) 
-            elif isinstance(sub_operand, OpResult): 
-                if isinstance(sub_operand.owner, InitOp): # if it is newly initialized
-                    all_operand += (sub_operand.owner.name,)
-                else: # recursive call if it's the result of other operations
-                    all_operand += self.sub_operand(sub_operand) 
+                all_hashes += (operandHashes,)
             else:
+                raise ValueError("Error, the operand is not in the dictionary")
                 return None
         
-        return all_operand
+        return all_operand,all_hashes
     
     # Get the operands of the operation for which the OperationInfo is built
-    def __init__(self,op: Operation,qh: dict):
+    def __init__(self,op: Operation,qh: dict, qHashes:dict):
         self.op=op
 
         all_operands = tuple()
+        all_hashes = tuple()
         # order according to qubit number in order to catch the same operation with different operand order
         operandlist = sorted(self.operands,key=lambda x: int(re.search(r'q(\d+)_',x._name).group(1)))
 
         for operand in operandlist:
             operandHistory = qh.get(operand._name)
-            if(operandHistory is not None): # check if the operand history is already memorized
+            operandHash = qHashes.get(operand._name)
+            if(operandHistory is not None and operandHash is not None): # check if the operand history is already memorized
                 all_operands += operandHistory
-
+                all_hashes += (operandHash,)
             elif isinstance(operand, BlockArgument):# else if it is an input argument
                 qh[operand._name] = (operand.index,) # add to dict
+                currentHash = hash(operand.index)   
+                qHashes[operand._name] = currentHash # add to dict
+
                 all_operands += (operand.index,)
+                all_hashes += (currentHash,)
             elif isinstance(operand, OpResult):
                 if isinstance(operand.owner, InitOp):# if it is newly initialized
                     qh[operand._name] = (operand.owner.name,) # add to dict
+                    currentHash = hash(operand.owner.name)
+                    qHashes[operand._name] = currentHash # add to dict
+
                     all_operands += (operand.owner.name,)
+                    all_hashes += (currentHash,)
                 else:
-                    all_operands += self.sub_operand(operand,qh)
+                    temp1,temp2 = self.sub_operand(operand,qh)
+                    all_operands += temp1
+                    all_hashes += temp2
             else:
                 return None
         # add the result of the operation to the dict. Following operations using this result will find its
         # history already memorized
         qh[op.res._name] = (op.name,all_operands,)
+        qHashes[op.res._name] = hash((op.name,all_hashes,))
 
         self.operandsHistory = all_operands
-        self.hash= hash(self)
+
+        #print("About to hash")
+        self._hash= hash((self.name,self.result_types,all_hashes))
 
     def __hash__(self):
-        return hash(
-            (
-                self.name,
-                self.result_types,
-                self.operandsHistory
-            )
-        )
+        #print("Hashing  ",self.op,self._hash)
+        return self._hash
 
     def __eq__(self, other: object):
-        return self.hash == other.hash
+        return self.name == other.name and self.operandsHistory == other.operandsHistory and self.result_types == other.result_types
     
 # A dictionary used to store the passed operations during the MLIR traversing.
 # OperationInfo is the key, Operation is the value.
@@ -180,20 +189,25 @@ class KnownOps:
             self._known_ops = dict(known_ops._known_ops)
 
     def __getitem__(self, k: OperationInfo):
+        #print("Getitem")
         return self._known_ops[k]
 
     def __setitem__(self, k: OperationInfo, v: Operation):
+        #print("Setitem")
         self._known_ops[k] = v
 
     def __contains__(self, k: OperationInfo):
+        #print("Contains")
         return k in self._known_ops
 
     def get(self, k: OperationInfo) -> Operation | None:
+        #print("Get")
         if op := self._known_ops.get(k):
             return op
         return None
 
     def pop(self, k: OperationInfo):
+        #print("Pop")
         return self._known_ops.pop(k)
 
 
@@ -206,10 +220,13 @@ class CSEDriver:
     # Dict of the already passed operations
     _known_ops: KnownOps = KnownOps()
 
-    # Dict with the history of the qubits in the program. History means what operation and input arguments
-    # generate these qubits.
+    # Dict with the history of the qubits in the program.
     # Key: qubit._name ; Value: tuple with the history
     qubitHistories : dict[str,tuple]
+
+    # Dict memorizing the hash of the history of the qubits. Used in order to reduce hash computation time.
+    #  History means what operation and input argument generate these qubits. Key: qubit._name ; Value: hash of the tuple of the history
+    qubitHashes : dict[str,int]
     
     # Builder for inserting new operations
     builder: Builder
@@ -220,6 +237,7 @@ class CSEDriver:
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
         self.qubitHistories = {}
+        self.qubitHashes = {}
 
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
@@ -273,9 +291,11 @@ class CSEDriver:
             self.max_qubit += 1
             self._replace_and_delete(op, initOp)
 
-        opInfo = OperationInfo(op,self.qubitHistories)
+        #print("OpInfo Creation")
+        opInfo = OperationInfo(op,self.qubitHistories,self.qubitHashes)
 
         # check if the operation is already known
+        #print("self._known_ops.get(opInfo)")
         if existing := self._known_ops.get(opInfo): 
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
             if not has_other_modifications(existing) and not has_read_after_write(op, existing):
@@ -283,6 +303,7 @@ class CSEDriver:
                 return
         
         # if the operation is not known we add it to the known operations
+        #print("self._known_ops[opInfo] = op")
         self._known_ops[opInfo] = op
         return
 
