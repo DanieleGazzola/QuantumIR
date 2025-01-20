@@ -144,8 +144,8 @@ if __name__ == "__main__":
     cProfile.run("quantum_ir.run_transformations()","profile")
     p = pstats.Stats("profile")
     p.strip_dirs().sort_stats("cumulative").print_stats(20)
-    
     p.strip_dirs().sort_stats("time").print_stats(20)
+    p.print_callers()
 
 # quantum_ir.metrics_transformation()
 # quantum_ir.run_transformations()

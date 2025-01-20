@@ -2,34 +2,48 @@ from xdsl.ir import Operation
 from xdsl.pattern_rewriter import PatternRewriter, RewritePattern
 from xdsl.builder import Builder
 from xdsl.rewriter import Rewriter
-from dialect.dialect import CNotOp
+from dialect.dialect import CNotOp,FuncOp,InitOp
+from xdsl.dialects.builtin import ModuleOp
+
 
 # Class to drive the removal of unused operations in the main program.
 class InPlacing(RewritePattern):
     
     builder: Builder
     rewriter : Rewriter
+    maxqubit : int
 
     # Find the unused control bit to write the xor results on.
     def unused_operand(self,cnot_list : list):
         used = False
-        for cnot in cnot_list:
+        for cnot in cnot_list: # for every cnot matched
             control = cnot.control
-            next_op = cnot.next_op
-            # go on until the end of the mlir
-            while(next_op is not None):
-                # if the control qubit is used
-                if control in next_op.operands:
-                      used=True
-                      break
-                next_op = next_op.next_op
-            
-            if(used == False):
+            for use in control.uses: # check the uses of the control qubit
+
+                current_userop = use.operation # operation using the control qubit
+                res_qbnumber = int(current_userop.res._name.split('_')[0][1:])
+                control_qbnumber = int(control._name.split('_')[0][1:])
+                # if the result of the operation using the control qubit is greater than the number of qubit instantiated
+                # until now or is equal to the control qubit number (it's using that qubit as a target), consider the control
+                # qubit used, since these operations are performed after the considered cnot list.
+                if res_qbnumber > self.maxqubit or res_qbnumber==control_qbnumber:
+                    used = True
+                    break
+            if not used:
                 return cnot
-            else: used = False # Set false for the next iter.
+            else:
+                used = False # for next iter
     
     # Match the cnot chain and rewrite it.
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
+        
+        if isinstance(op,ModuleOp) or isinstance(op,FuncOp):
+            return
+        
+        if isinstance(op,InitOp):
+            self.maxqubit=int(op.res._name.split('_')[0][1:])
+            return
+
         self.rewriter = rewriter
         
         previous_op = op._prev_op
