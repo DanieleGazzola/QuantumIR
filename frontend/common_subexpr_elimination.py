@@ -11,65 +11,60 @@ import re
                             ##### SUPPORT FUNCTIONS #####
 
 # check if the existing SSAValue(qubit) will be changed in the future
-def has_other_modifications(from_op: Operation) -> bool:
+def has_other_modifications(existingOp: Operation) -> bool:
 
-    next_op = from_op.next_op
+    from_uses = existingOp.res.uses
 
-    # check on every operation until the end
-    while next_op != None:
-
-        # if the operation is an InitOp surely it will not change the SSAValue
-        # also, do not consider MeasureOp since they are always at the end and the
-        # way they modify the qubit does not impact other operations. 
-        if not isinstance(next_op, InitOp) and not isinstance(next_op,MeasureOp):
-
-            # if we find a modification of the qubit we don't substitute
-            if next_op.target == from_op.res:
-                return True
-            
-        next_op = next_op.next_op
+    for use in from_uses:
+        # opearation using the SSAValue
+        user_operation = use.operation
+        if isinstance(user_operation,MeasureOp): # do not consider measure operations
+            continue
+        elif(user_operation.operands[-1] == existingOp.res): # if in operation using this qubit, it is used as a target
+            return True
+        else:
+            continue
 
     return False
-
+    
 # check if the existing SSAValue(qubit) will be read after the one we are substituting is modified
 # if not we can remap the operation we have on the second qubit to the first one,
 # deleting the second qubit
-def has_read_after_write(op: Operation, from_op: Operation) -> bool:
+def has_read_after_write(currentOp: Operation, existingOp: Operation) -> bool:
 
-    next_op = op.next_op
+    next_op = currentOp.next_op
 
-    # check on every operation until the end
-    while next_op != None:
+    op_uses = currentOp.res.uses
 
-        # if the operation is an InitOp surely it will not change the qubit
-        if not isinstance(next_op, InitOp):
-
-            # if we find a modification of the second qubit we stop and now we check for reads on the first one
-            if next_op.target == op.res:
-                break
-
-        next_op = next_op.next_op
+    found = False
+    for use in op_uses:
+        user_operation = use.operation
+        if isinstance(user_operation, MeasureOp):
+            continue
+        elif(user_operation.operands[-1] == currentOp.res): # result of current op is used as target
+            operation_using = user_operation
+            found=True
+            break
+        else:
+            continue
     
-    # if we didn't find any write we can safely remap qubits
-    if next_op == None:
+    if not found:
         return False
-    
-    next_op = next_op.next_op
+    else:
+        next_op = operation_using.next_op
+         # check on every operation until the end
+        while next_op != None:
 
-    # check on every operation until the end
-    while next_op != None:
+            # if the operation is an InitOp surely it will not read the qubit 
+            if not isinstance(next_op, InitOp):
 
-        # if the operation is an InitOp surely it will not read the qubit 
-        if not isinstance(next_op, InitOp):
+                # if we find any use of the first qubit we cannot remap
+                if any(attr == existingOp.res for attr in next_op.operands):
+                    return True
+                
+            next_op = next_op.next_op
 
-            # if we find any use of the first qubit we cannot remap
-            if any(attr == from_op.res for attr in next_op.operands):
-                return True
-            
-        next_op = next_op.next_op
-
-    return False
-
+        return False
 
                             ##### CLASSES TO HELP CSE MANAGMENT #####
    
