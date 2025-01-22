@@ -19,7 +19,7 @@ def has_other_modifications(existingOp: Operation) -> bool:
         # operation using the SSAValue
         user_operation = use.operation
         if isinstance(user_operation,MeasureOp): # do not consider measure operations
-            continue
+            return True
         elif(user_operation.operands[-1] == existingOp.res): # if the SSAValue is used as a target
             return True
         else:
@@ -65,6 +65,32 @@ def has_read_after_write(currentOp: Operation, existingOp: Operation) -> bool:
             next_op = next_op.next_op
 
         return False
+# if both results of the existing and of the current operation are measured we cannot substitute 
+def both_measured(currentOp: Operation, existingOp: Operation) -> bool:
+    current_res = currentOp.res
+    existing_res = existingOp.res
+
+    current_uses = current_res.uses
+    existing_uses = existing_res.uses
+
+    current_measured = False
+    existing_measured = False
+
+    for use in current_uses:
+        if isinstance(use.operation, MeasureOp):
+            current_measured = True
+            break
+    
+    for use in existing_uses:
+        if isinstance(use.operation, MeasureOp):
+            existing_measured = True
+            break
+    
+    if current_measured and existing_measured:
+        return True
+    else:
+        return False
+
 
                             ##### CLASSES TO HELP CSE MANAGMENT #####
    
@@ -150,9 +176,9 @@ class OperationInfo:
                     all_operands += (operand.owner.name,)
                     all_hashes += (currentHash,)
                 else:
-                    temp1,temp2 = self.sub_operand(operand,qh,qHashes)
-                    all_operands += temp1
-                    all_hashes += temp2
+                    sub_operands,sub_hashes = self.sub_operand(operand,qh,qHashes)
+                    all_operands += sub_operands
+                    all_hashes += sub_hashes
             else:
                 raise TypeError("Operand not present in dictionary nor an input argumnent or a result of an operation")
         # add the result of the operation to the dict. Following operations using this result will find its
@@ -285,7 +311,7 @@ class CSEDriver:
         # check if the operation is already known
         if existing := self._known_ops.get(opInfo): 
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing) and not has_read_after_write(op, existing):
+            if not has_other_modifications(existing) and not has_read_after_write(op, existing) and not both_measured(op, existing):
                 self._replace_and_delete(op, existing)
                 return
         
