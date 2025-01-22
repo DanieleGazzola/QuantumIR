@@ -16,11 +16,11 @@ def has_other_modifications(existingOp: Operation) -> bool:
     from_uses = existingOp.res.uses
 
     for use in from_uses:
-        # opearation using the SSAValue
+        # operation using the SSAValue
         user_operation = use.operation
         if isinstance(user_operation,MeasureOp): # do not consider measure operations
             continue
-        elif(user_operation.operands[-1] == existingOp.res): # if in operation using this qubit, it is used as a target
+        elif(user_operation.operands[-1] == existingOp.res): # if the SSAValue is used as a target
             return True
         else:
             continue
@@ -114,7 +114,7 @@ class OperationInfo:
                 all_operand += operandHistory
                 all_hashes += (operandHashes,)
             else:
-                raise ValueError("Error, the operand is not in the dictionary")
+                raise TypeError("Error, the operand is not in the dictionary",sub_operand._name, sub_operand, operandHistory,operandHashes)
                         
         return all_operand,all_hashes
     
@@ -154,19 +154,18 @@ class OperationInfo:
                     all_operands += temp1
                     all_hashes += temp2
             else:
-                return None
+                raise TypeError("Operand not present in dictionary nor an input argumnent or a result of an operation")
         # add the result of the operation to the dict. Following operations using this result will find its
         # history already memorized
         qh[op.res._name] = (op.name,all_operands,)
+        
         qHashes[op.res._name] = hash((op.name,all_hashes,))
 
         self.operandsHistory = all_operands
 
-        #print("About to hash")
         self._hash= hash((self.name,self.result_types,all_hashes))
 
     def __hash__(self):
-        #print("Hashing  ",self.op,self._hash)
         return self._hash
 
     def __eq__(self, other: object):
@@ -185,25 +184,20 @@ class KnownOps:
             self._known_ops = dict(known_ops._known_ops)
 
     def __getitem__(self, k: OperationInfo):
-        #print("Getitem")
         return self._known_ops[k]
 
     def __setitem__(self, k: OperationInfo, v: Operation):
-        #print("Setitem")
         self._known_ops[k] = v
 
     def __contains__(self, k: OperationInfo):
-        #print("Contains")
         return k in self._known_ops
 
     def get(self, k: OperationInfo) -> Operation | None:
-        #print("Get")
         if op := self._known_ops.get(k):
             return op
         return None
 
     def pop(self, k: OperationInfo):
-        #print("Pop")
         return self._known_ops.pop(k)
 
 
@@ -264,7 +258,6 @@ class CSEDriver:
 
     # simplify the operation
     def _simplify_operation(self, op: Operation):
-
         # never simplify these types of operations
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
@@ -287,11 +280,9 @@ class CSEDriver:
             self.max_qubit += 1
             self._replace_and_delete(op, initOp)
 
-        #print("OpInfo Creation")
         opInfo = OperationInfo(op,self.qubitHistories,self.qubitHashes)
 
         # check if the operation is already known
-        #print("self._known_ops.get(opInfo)")
         if existing := self._known_ops.get(opInfo): 
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
             if not has_other_modifications(existing) and not has_read_after_write(op, existing):
@@ -299,7 +290,6 @@ class CSEDriver:
                 return
         
         # if the operation is not known we add it to the known operations
-        #print("self._known_ops[opInfo] = op")
         self._known_ops[opInfo] = op
         return
 

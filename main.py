@@ -109,8 +109,9 @@ class QuantumIR():
                 print("\n\nNo Hermitian eliminations to be performed\n")
 
             clone_len = len(module.body.block._first_op.body.block.ops)
-            PatternRewriteWalker(InPlacing()).rewrite_module(module)
-            
+            # apply_recusively = False in order to not apply it to new operation inserted by the pattern itself
+            PatternRewriteWalker(InPlacing(),walk_regions_first=False,apply_recursively=False).rewrite_module(module)
+
             # check if any inplacing has been done
             if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
                 print("\n\nInplacing")
