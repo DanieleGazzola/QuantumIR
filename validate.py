@@ -2,6 +2,8 @@ from main import QuantumIR
 
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
+from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGOpNode
 
 import numpy as np
 
@@ -119,6 +121,66 @@ def bit_strings_iterative(N):
                    ['1' + bit_string for bit_string in bit_list]
     return bit_list
 
+# Functions to calculate the metrics
+
+def metrics(circuit):
+    # Circuit depth
+    depth = circuit.depth()
+
+    # Circuit width (number of qubits)
+    width = circuit.num_qubits
+
+    # Gate count (total number of gates)
+    gate_count = circuit.size()
+
+    # Count T gates
+    dag = circuit_to_dag(circuit)
+    t_gate_count = sum(1 for node in dag.topological_op_nodes() if node.name in ["t", "tdg"])
+
+    # T gate depth (custom function)
+    t_gate_depth = measure_t_gate_depth(dag)
+
+    # Critical path length
+    critical_path_length = calculate_critical_path_length(dag)
+
+    return {
+        "Depth": depth,
+        "Width": width,
+        "Gate Count": gate_count,
+        "T Gate Count": t_gate_count,
+        "T Gate Depth": t_gate_depth,
+        "Critical Path Length": critical_path_length
+    }
+
+def measure_t_gate_depth(dag):
+    """Measure T gate depth in a circuit DAG."""
+    t_gate_layers = []
+    for layer in dag.layers():
+        graph = layer["graph"]
+        t_gates_in_layer = [node for node in graph.op_nodes() if node.name in ["t", "tdg"]]
+        if t_gates_in_layer:
+            t_gate_layers.append(t_gates_in_layer)
+
+    # The number of layers with T gates determines T gate depth
+    return len(t_gate_layers)
+
+def calculate_critical_path_length(dag):
+    """Calculate the critical path length in a DAG."""
+    longest_path_length = {node: 0 for node in dag.topological_op_nodes()}
+
+    # Traverse nodes in topological order
+    for node in dag.topological_op_nodes():
+        # Update the path length for all successors
+        for successor in dag.successors(node):
+            if isinstance(successor, DAGOpNode):
+                longest_path_length[successor] = max(
+                    longest_path_length[successor],
+                    longest_path_length[node] + 1
+                )
+
+    # Return the maximum path length across all nodes
+    return max(longest_path_length.values())
+
 ######### MAIN #########
 
 if len(sys.argv) != 2:
@@ -156,17 +218,20 @@ for i in range(4):
         print("\nTest 3: Basic quantum circuit with CCNOT decomposition")
         print("Testing...")
         quantum_ir.metrics_transformation(print_output = False)
+        basic_ir = quantum_ir
     if i == 3:
         print("\nTest 4: Optimized quantum circuit with CCNOT decomposition")
         print("Testing...")
         quantum_ir.metrics_transformation(print_output = False)
         quantum_ir.run_transformations(print_output = False)
+        transformed_ir = quantum_ir
 
     module = quantum_ir.module
     funcOp = module.body.block._first_op
-    first_op = funcOp.body.block._first_op
 
     input_args = funcOp.body.block._args
+
+    first_op = funcOp.body.block._first_op
 
     info = get_quantum_circuit_info(input_args, first_op)
 
@@ -194,8 +259,47 @@ for i in range(4):
 print("\n=========================================")
 print(f"\n{passed_tests} out of 4 tests passed.")
 
-if passed_tests == 4:
-    sys.exit(0)  # Success: all tests passed
-else:
+if passed_tests != 4:
     sys.exit(1)  # Failure: one or more tests failed
 
+# Metrics for basic circuit
+
+module = basic_ir.module
+funcOp = module.body.block._first_op
+
+input_args = funcOp.body.block._args
+
+first_op = funcOp.body.block._first_op
+
+info = get_quantum_circuit_info(input_args, first_op)
+
+example_state = np.array([1] + [0] * (2**info["qubit_number"] - 1))
+circuit = create_circuit(first_op, info["qubit_number"], info["output_number"], example_state)
+
+basic_metrics = metrics(circuit)
+
+# Metrics for optimized circuit
+
+module = transformed_ir.module
+funcOp = module.body.block._first_op
+
+input_args = funcOp.body.block._args
+
+first_op = funcOp.body.block._first_op
+
+info = get_quantum_circuit_info(input_args, first_op)
+
+example_state = np.array([1] + [0] * (2**info["qubit_number"] - 1))
+circuit = create_circuit(first_op, info["qubit_number"], info["output_number"], example_state)
+
+transformed_metrics = metrics(circuit)
+
+print("\nMetrics for the basic circuit:")
+for key, value in basic_metrics.items():
+    print(f"{key}: {value}")
+
+print("\nMetrics for the optimized circuit:")
+for key, value in transformed_metrics.items():
+    print(f"{key}: {value}")
+
+sys.exit(0)  # Success: all tests passed
