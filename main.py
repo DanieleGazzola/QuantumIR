@@ -147,14 +147,18 @@ class QuantumIR():
 
 # Only run this if the file is executed directly, not imported
 if __name__ == "__main__":
-    quantum_ir = QuantumIR()
-    quantum_ir.run_dataclass()
-    quantum_ir.run_generate_ir()
-    cProfile.run("quantum_ir.run_transformations()","profile")
-    p = pstats.Stats("profile")
-    p.strip_dirs().sort_stats("cumulative").print_stats(20)
-    p.strip_dirs().sort_stats("time").print_stats(20)
-    p.print_callers()
+    try:
+        quantum_ir = QuantumIR()
+        quantum_ir.run_dataclass()
+        quantum_ir.run_generate_ir()
+        cProfile.run("quantum_ir.run_transformations()","profile")
+        p = pstats.Stats("profile")
+        p.strip_dirs().sort_stats("cumulative").print_stats(20)
+        p.strip_dirs().sort_stats("time").print_stats(20)
+        p.print_callers()
+    except:
+        print("Error in the execution of the program")
+        raise
 
 # quantum_ir.metrics_transformation()
 # quantum_ir.run_transformations()
