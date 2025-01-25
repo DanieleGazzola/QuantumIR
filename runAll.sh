@@ -2,7 +2,7 @@
 
 # Specifica la directory contenente i file da elaborare
 inputDir="test-inputs/crypto_benchmarks/"
-
+cd build
 # Loop su tutti i file .v nella directory di input
 for file in "${inputDir}"*; do
     # Estrai il nome base del file (senza percorso e senza estensione)
@@ -12,7 +12,7 @@ for file in "${inputDir}"*; do
     echo "Processing $file..."
 
     # Esegui il comando verilog_to_json
-    ./build/verilog_to_json "$file" > "test-outputs/${totest}.out"
+    ./verilog_to_json ${file} > "test-outputs/${totest}.out"
 
     # Controlla il codice di uscita
     exit_code=$?
@@ -20,7 +20,14 @@ for file in "${inputDir}"*; do
         
         # Esegui lo script Python
         python3 main.py >> "test-outputs/${totest}.out" 2>&1
-        echo "$file processed successfully."
+        python_exit_code=$?
+        if [ $python_exit_code -eq 0 ]; then
+            echo "$file processed successfully."
+        else
+            echo "Error in Python script execution for $file. Exit code: $python_exit_code"
+            exit $python_exit_code
+        fi
+
     else
         echo "Error in SLANG compilation for $file."
         exit $exit_code
