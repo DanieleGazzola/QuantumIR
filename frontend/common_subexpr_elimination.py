@@ -10,26 +10,26 @@ from dialect.dialect import FuncOp, MeasureOp, InitOp, CCNotOp, CNotOp
 import re
                             ##### SUPPORT FUNCTIONS #####
 
-# check if the existing SSAValue(qubit) will be changed in the future
-def has_other_modifications(existingOp: Operation) -> bool:
+# check if the existing SSAValue(qubit) will be changed between the existing operation and the one we are substituting
+def has_other_modifications(existingOp: Operation,passedOperation:set) -> bool:
 
     from_uses = existingOp.res.uses
 
     for use in from_uses:
         # operation using the SSAValue
         user_operation = use.operation
-        if isinstance(user_operation,MeasureOp): # do not consider measure operations
-            return True
-        elif(user_operation.operands[-1] == existingOp.res): # if the SSAValue is used as a target
-            return True
+        if isinstance(user_operation, MeasureOp):
+            continue
+        if(user_operation.operands[-1] == existingOp.res): # if the SSAValue is used as a target
+            if(str(user_operation) in passedOperation): # and the use happens before the current operation
+                return True
         else:
             continue
 
     return False
     
-# check if the existing SSAValue(qubit) will be read after the one we are substituting is modified
-# if not we can remap the operation we have on the second qubit to the first one,
-# deleting the second qubit
+# if the current operation res SSAValue is written after the current operation and the existing operation res SSAValue
+# is read after that write, we can't substitute the current operation with the existing one 
 def has_read_after_write(currentOp: Operation, existingOp: Operation) -> bool:
 
     next_op = currentOp.next_op
@@ -181,10 +181,10 @@ class OperationInfo:
                     all_hashes += sub_hashes
             else:
                 raise TypeError("Operand not present in dictionary nor an input argumnent or a result of an operation")
+        
         # add the result of the operation to the dict. Following operations using this result will find its
         # history already memorized
         qh[op.res._name] = (op.name,all_operands,)
-        
         qHashes[op.res._name] = hash((op.name,all_hashes,))
 
         self.operandsHistory = all_operands
@@ -249,11 +249,14 @@ class CSEDriver:
     # counter for keeping track of the current highest qubit number
     max_qubit: int = 0
 
+    passedOperations : set
+
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
         self.qubitHistories = {}
         self.qubitHashes = {}
+        self.passedOperations = set()
 
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
@@ -288,6 +291,7 @@ class CSEDriver:
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
+        self.passedOperations.add(str(op))
 
         # check if CCNotOp has two equal control qubits.
         # In that case we can replace it with a CNotOp
@@ -309,9 +313,12 @@ class CSEDriver:
         opInfo = OperationInfo(op,self.qubitHistories,self.qubitHashes)
 
         # check if the operation is already known
-        if existing := self._known_ops.get(opInfo): 
+        if existing := self._known_ops.get(opInfo):
+
             # if the existing op(qubit) will not be changed in the future we can replace the current operation
-            if not has_other_modifications(existing) and not has_read_after_write(op, existing) and not both_measured(op, existing):
+            if not has_other_modifications(existing,self.passedOperations) and not has_read_after_write(op, existing) \
+                and not both_measured(op, existing):
+
                 self._replace_and_delete(op, existing)
                 return
         
