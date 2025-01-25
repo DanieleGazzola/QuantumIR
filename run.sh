@@ -4,7 +4,7 @@ clear
 
 cd build
 
-input='crypto_benchmarks/mem_ctrl_untilsat.v'
+input='cse.sv'
 
 rm -f ../test-outputs/${totest}.out
 
