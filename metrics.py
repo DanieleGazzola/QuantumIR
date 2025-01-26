@@ -47,43 +47,6 @@ def create_circuit(first_op, qubit_number, output_number, state):
     
     return circuit
 
-# Function to generate the quantum truth table
-def generate_quantum_truth_table(first_op, qubit_number, init_number, output_number, istates):
-    counts = {}
-    quantum_truth_table = {}
-    backend = AerSimulator()
-
-    for i in range(2**qubit_number):
-        circuit = create_circuit(first_op, qubit_number, output_number, istates[i])
-
-        job = backend.run(circuit, shots=2000)
-        result = job.result()
-
-        # Consider only the entries where the support output qubits are set to zero.
-        if istr[i][:init_number] == '0' * init_number:
-            counts[istr[i][init_number:]] = result.get_counts()
-
-        for outer_key, inner_dict in counts.items():
-            for inner_key, value in inner_dict.items():
-                quantum_truth_table[outer_key] = inner_key
-
-    return quantum_truth_table
-
-# Function to generate the classical truth table
-def generate_classical_truth_table(circuit_name):
-    classical_truth_table = {}
-
-    with open(f'truth-tables/{circuit_name}.csv', 'r') as file:
-        csv_reader = csv.DictReader(file)
-        
-        out_columns = [col for col in csv_reader.fieldnames if col.startswith('out')]
-        
-        for row in csv_reader:
-            flipped_value = ''.join(str(row[col]) for col in reversed(out_columns))
-            classical_truth_table[row['Inputs']] = flipped_value
-
-    return classical_truth_table
-
 # Support function to return information about the quantum circuit under analysis
 def get_quantum_circuit_info(input_args, first_op):
     # Scroll through the IR tree to count the number of (qu)bits numbers
@@ -100,11 +63,6 @@ def get_quantum_circuit_info(input_args, first_op):
         current = current.next_op
 
     qubit_number = input_number + init_number
-
-    print("\nNumber of input qubits: ", input_number, 
-          "\nNumber of support qubits: ", init_number, 
-          "\nTotal qubits used: ", qubit_number, 
-          "\nNumber of output bits: ", output_number)
     
     return {
     "input_number": input_number,
@@ -112,14 +70,6 @@ def get_quantum_circuit_info(input_args, first_op):
     "init_number": init_number,
     "qubit_number": qubit_number
     }
-
-# Support function to generate all possible bit strings of length N
-def bit_strings_iterative(N):
-    bit_list = ['']
-    for _ in range(N):
-        bit_list = ['0' + bit_string for bit_string in bit_list] + \
-                   ['1' + bit_string for bit_string in bit_list]
-    return bit_list
 
 # Functions to calculate the metrics
 
@@ -188,19 +138,9 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 circuit_name = sys.argv[1]
-print(f"Testing {circuit_name} circuit...")
+print(f"Measuring {circuit_name} circuit...")
 
-classical_truth_table = generate_classical_truth_table(circuit_name)
-
-print('\nThe truth table of the equivalent classical circuit is:')
-for key, value in classical_truth_table.items():
-    print(f"{key}: {value}")
-
-print("\n=========================================")
-
-passed_tests = 0
-
-for i in range(4):
+for i in range(2):
 
     # Generate IR
     quantum_ir = QuantumIR()
@@ -208,57 +148,66 @@ for i in range(4):
     quantum_ir.run_generate_ir(print_output = False)
 
     if i == 0:
-        print("\nTest 1: Basic quantum circuit")
-        print("Testing...")
+        print("\nGenerating basic quantum circuit with CCNOT decomposition")
+        quantum_ir.metrics_transformation(print_output = False)
+        basic_ir = quantum_ir
     if i == 1:
-        print("\nTest 2: Optimized quantum circuit")
-        print("Testing...")
-        quantum_ir.run_transformations(print_output = False)
-    if i == 2:
-        print("\nTest 3: Basic quantum circuit with CCNOT decomposition")
-        print("Testing...")
-        quantum_ir.metrics_transformation(print_output = False)
-    if i == 3:
-        print("\nTest 4: Optimized quantum circuit with CCNOT decomposition")
-        print("Testing...")
+        print("\nGenerating optimized quantum circuit with CCNOT decomposition")
         quantum_ir.run_transformations(print_output = False)
         quantum_ir.metrics_transformation(print_output = False)
         quantum_ir.run_transformations(print_output = False)
+        transformed_ir = quantum_ir
 
-    module = quantum_ir.module
-    funcOp = module.body.block._first_op
+# Metrics for basic circuit
 
-    input_args = funcOp.body.block._args
+module = basic_ir.module
+funcOp = module.body.block._first_op
 
-    first_op = funcOp.body.block._first_op
+input_args = funcOp.body.block._args
 
-    info = get_quantum_circuit_info(input_args, first_op)
+first_op = funcOp.body.block._first_op
 
-    # Generate all possible inputs
-    istr = bit_strings_iterative(info["qubit_number"])
-    istates = np.eye(2**info["qubit_number"])
+info_basic = get_quantum_circuit_info(input_args, first_op)
 
-    quantum_truth_table = generate_quantum_truth_table(first_op, info["qubit_number"], info["init_number"], info["output_number"], istates)
+example_state = np.array([1] + [0] * (2**info_basic["qubit_number"] - 1))
+circuit = create_circuit(first_op, info_basic["qubit_number"], info_basic["output_number"], example_state)
 
-    # Compare the truth tables
-    valid = quantum_truth_table == classical_truth_table
+basic_metrics = metrics(circuit)
 
-    if valid:
-        print("\nTest passed!")
-        passed_tests += 1
-    else:
-        for key in quantum_truth_table:
-            if quantum_truth_table[key] != classical_truth_table.get(key):
-                print(f"Difference found at input {key}: quantum circuit returns {quantum_truth_table[key]}, ") 
-                print(f"classical circuit returns {classical_truth_table.get(key)}")
+# Metrics for optimized circuit
 
-    if (i < 3):
-        print("\n-----------------------------------------")
+module = transformed_ir.module
+funcOp = module.body.block._first_op
 
-print("\n=========================================")
-print(f"\n{passed_tests} out of 4 tests passed.")
+input_args = funcOp.body.block._args
 
-if passed_tests != 4:
-    sys.exit(1)  # Failure: one or more tests failed
+first_op = funcOp.body.block._first_op
 
-sys.exit(0)  # Success: all tests passed
+info_transformed = get_quantum_circuit_info(input_args, first_op)
+
+example_state = np.array([1] + [0] * (2**info_transformed["qubit_number"] - 1))
+circuit = create_circuit(first_op, info_transformed["qubit_number"], info_transformed["output_number"], example_state)
+
+transformed_metrics = metrics(circuit)
+
+# Output
+
+print("\nMetrics for the basic circuit:")
+for key, value in basic_metrics.items():
+    print(f"{key}: {value}")
+
+print("\nNumber of input qubits: ", info_basic["input_number"], 
+      "\nNumber of support qubits: ", info_basic["init_number"], 
+      "\nTotal qubits used: ", info_basic["qubit_number"], 
+      "\nNumber of output bits: ", info_basic["output_number"])
+
+print("\nMetrics for the optimized circuit:")
+for key, value in transformed_metrics.items():
+    print(f"{key}: {value}")
+
+print("\nNumber of input qubits: ", info_transformed["input_number"], 
+      "\nNumber of support qubits: ", info_transformed["init_number"], 
+      "\nTotal qubits used: ", info_transformed["qubit_number"], 
+      "\nNumber of output bits: ", info_transformed["output_number"])
+
+sys.exit(0)
