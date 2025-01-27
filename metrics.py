@@ -13,19 +13,17 @@ import csv
 ######### FUNCTIONS #########
 
 # Function to create a quantum circuit from the IR
-def create_circuit(first_op, qubit_number, output_number, state):
+def create_circuit(first_op, qubit_number, output_number):
 
     circuit = QuantumCircuit(qubit_number, output_number)
     current = first_op
     cbit_index = 0
 
-    qubit_list = [i for i in range(qubit_number)]
-
-    circuit.initialize(state, qubit_list)
+    circuit.initialize(1)
 
     while(current is not None):
         operands_names = [op._name for op in current.operands]
-        indexes = [int(name.split("_")[0][1]) for name in operands_names]
+        indexes = [int(name.split("_")[0][1:]) for name in operands_names]
 
         if current.name == "quantum.not":
             circuit.x(indexes[0])
@@ -162,8 +160,7 @@ first_op = funcOp.body.block._first_op
 
 info_basic = get_quantum_circuit_info(input_args, first_op)
 
-example_state = np.array([1] + [0] * (2**info_basic["qubit_number"] - 1))
-circuit = create_circuit(first_op, info_basic["qubit_number"], info_basic["output_number"], example_state)
+circuit = create_circuit(first_op, info_basic["qubit_number"], info_basic["output_number"])
 
 basic_metrics = metrics(circuit)
 
@@ -178,8 +175,7 @@ first_op = funcOp.body.block._first_op
 
 info_transformed = get_quantum_circuit_info(input_args, first_op)
 
-example_state = np.array([1] + [0] * (2**info_transformed["qubit_number"] - 1))
-circuit = create_circuit(first_op, info_transformed["qubit_number"], info_transformed["output_number"], example_state)
+circuit = create_circuit(first_op, info_transformed["qubit_number"], info_transformed["output_number"])
 
 transformed_metrics = metrics(circuit)
 

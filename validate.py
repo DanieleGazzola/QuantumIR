@@ -25,7 +25,7 @@ def create_circuit(first_op, qubit_number, output_number, state):
 
     while(current is not None):
         operands_names = [op._name for op in current.operands]
-        indexes = [int(name.split("_")[0][1]) for name in operands_names]
+        indexes = [int(name.split("_")[0][1:]) for name in operands_names]
 
         if current.name == "quantum.not":
             circuit.x(indexes[0])
