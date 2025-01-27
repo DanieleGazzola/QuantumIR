@@ -133,13 +133,6 @@ def calculate_critical_path_length(dag):
 
 ######### MAIN #########
 
-if len(sys.argv) != 2:
-    print("Please, provide exaclty one argument: the name of the circuit to be tested.")
-    sys.exit(1)
-
-circuit_name = sys.argv[1]
-print(f"Measuring {circuit_name} circuit...")
-
 for i in range(2):
 
     # Generate IR

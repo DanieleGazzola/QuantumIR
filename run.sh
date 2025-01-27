@@ -2,26 +2,68 @@
 
 clear
 
+# Check if a filename is provided
+if [ -z "$1" ]; then
+    echo "Usage: $0 <filename> [-validate|-v] [-metrics|-m]"
+    exit 1
+fi
+
+# Set the filename and shift it out of the arguments
+filename="$1"
+shift
+basefile=$(basename "$filename")
+outname=${basefile%%.*}
+
+# Navigate to the build directory
 cd build
 
-filename='cse.sv'
-
-outname=${filename%%.*}
-
+# Ensure output file is clean
 rm -f ../test-outputs/${outname}.out
-
 touch ../test-outputs/${outname}.out
 
+# Perform transformations
 ./verilog_to_json ../test-inputs/${filename} > ../test-outputs/${outname}.out
-
 exit_code=$?
 
 if [ $exit_code -eq 0 ]; then
-        cd ..
-
-        python3 main.py > test-outputs/${outname}.out 2>&1
+    cd ..
+    python3 main.py > test-outputs/${outname}.out 2>&1
 else
     echo "Error in SLANG compilation."
-    exit $exit_code  
+    exit $exit_code
 fi
 
+# List of allowed filenames for validation
+allowed_files=("and.sv" "cse.sv" "full_adder.sv" "inplace.sv" "not.sv" "proceduralBlock.sv" "remove_unused.sv" "xorInPlace.sv")
+
+# Parse command-line arguments for optional steps
+run_validate=false
+run_metrics=false
+
+for arg in "$@"; do
+    case $arg in
+        -validate|-v)
+            if [[ " ${allowed_files[@]} " =~ " ${filename} " ]]; then
+                run_validate=true
+            else
+                echo "Validation is not enabled for this file."
+            fi
+            ;;
+        -metrics|-m)
+            run_metrics=true
+            ;;
+        *)
+            echo "Unknown option: $arg"
+            exit 1
+            ;;
+    esac
+done
+
+# Run optional steps
+if $run_validate; then
+    python validate.py ${outname}
+fi
+
+if $run_metrics; then
+    python metrics.py
+fi

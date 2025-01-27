@@ -121,66 +121,6 @@ def bit_strings_iterative(N):
                    ['1' + bit_string for bit_string in bit_list]
     return bit_list
 
-# Functions to calculate the metrics
-
-def metrics(circuit):
-    # Circuit depth
-    depth = circuit.depth()
-
-    # Circuit width (number of qubits)
-    width = circuit.num_qubits
-
-    # Gate count (total number of gates)
-    gate_count = circuit.size()
-
-    # Count T gates
-    dag = circuit_to_dag(circuit)
-    t_gate_count = sum(1 for node in dag.topological_op_nodes() if node.name in ["t", "tdg"])
-
-    # T gate depth (custom function)
-    t_gate_depth = measure_t_gate_depth(dag)
-
-    # Critical path length
-    critical_path_length = calculate_critical_path_length(dag)
-
-    return {
-        "Depth": depth,
-        "Width": width,
-        "Gate Count": gate_count,
-        "T Gate Count": t_gate_count,
-        "T Gate Depth": t_gate_depth,
-        "Critical Path Length": critical_path_length
-    }
-
-def measure_t_gate_depth(dag):
-    """Measure T gate depth in a circuit DAG."""
-    t_gate_layers = []
-    for layer in dag.layers():
-        graph = layer["graph"]
-        t_gates_in_layer = [node for node in graph.op_nodes() if node.name in ["t", "tdg"]]
-        if t_gates_in_layer:
-            t_gate_layers.append(t_gates_in_layer)
-
-    # The number of layers with T gates determines T gate depth
-    return len(t_gate_layers)
-
-def calculate_critical_path_length(dag):
-    """Calculate the critical path length in a DAG."""
-    longest_path_length = {node: 0 for node in dag.topological_op_nodes()}
-
-    # Traverse nodes in topological order
-    for node in dag.topological_op_nodes():
-        # Update the path length for all successors
-        for successor in dag.successors(node):
-            if isinstance(successor, DAGOpNode):
-                longest_path_length[successor] = max(
-                    longest_path_length[successor],
-                    longest_path_length[node] + 1
-                )
-
-    # Return the maximum path length across all nodes
-    return max(longest_path_length.values())
-
 ######### MAIN #########
 
 if len(sys.argv) != 2:
