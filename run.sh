@@ -61,9 +61,9 @@ done
 
 # Run optional steps
 if $run_validate; then
-    python validate.py ${outname}
+    python3 validate.py ${outname}
 fi
 
 if $run_metrics; then
-    python metrics.py
+    python3 metrics.py
 fi

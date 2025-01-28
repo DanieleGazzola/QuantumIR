@@ -154,11 +154,7 @@ if __name__ == "__main__":
         quantum_ir.run_dataclass()
         quantum_ir.run_generate_ir()
         quantum_ir.run_transformations()
-        cProfile.run("quantum_ir.metrics_transformation(print_output=False)","profile")
-        p = pstats.Stats("profile")
-        p.strip_dirs().sort_stats("cumulative").print_stats(30)
-        p.strip_dirs().sort_stats("time").print_stats(30)
-        p.print_callers()
+        quantum_ir.metrics_transformation()
         quantum_ir.run_transformations()
     except:
         print("Error in the execution of the program")
