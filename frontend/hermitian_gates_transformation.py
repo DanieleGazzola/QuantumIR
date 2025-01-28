@@ -80,22 +80,22 @@ class KnownOps:
         else:
             self._known_ops = dict(known_ops._known_ops)
 
-    def __getitem__(self, k: Operation):
-        return self._known_ops[OperationInfo(k)]
+    def __getitem__(self, k: OperationInfo):
+        return self._known_ops[k]
 
-    def __setitem__(self, k: Operation, v: Operation):
-        self._known_ops[OperationInfo(k)] = v
+    def __setitem__(self, k: OperationInfo, v: Operation):
+        self._known_ops[k] = v
 
-    def __contains__(self, k: Operation):
-        return OperationInfo(k) in self._known_ops
+    def __contains__(self, k: OperationInfo):
+        return k in self._known_ops
 
-    def get(self, k: Operation) -> Operation | None:
-        if op := self._known_ops.get(OperationInfo(k)):
+    def get(self, k: OperationInfo) -> Operation | None:
+        if op := self._known_ops.get(k):
             return op
         return None
 
-    def pop(self, k: Operation):
-        return self._known_ops.pop(OperationInfo(k))
+    def pop(self, k: OperationInfo):
+        return self._known_ops.pop(k)
 
                             ##### CLASS TO MANAGE HGE TRANSFORMATIONS #####
 
@@ -143,8 +143,9 @@ class HGEDriver:
         if isinstance(op, MeasureOp):
             return
 
+        opInfo = OperationInfo(op)
         # check if the operation is already known
-        if existing := self._known_ops.get(op):
+        if existing := self._known_ops.get(opInfo):
 
             # if the qubit is not used in between we can delete the operations
             if not has_uses_between(existing, op):
