@@ -126,7 +126,9 @@ class QuantumIR():
                 if print_output: 
                     print("\n\nNo more transformations possible\n")
                 break
-        
+
+
+        self.module = module
         # Final IR
         if print_output:
             print("\nFinal IR:\n")
@@ -137,7 +139,7 @@ class QuantumIR():
     # in order to apply metrics for validation
     def metrics_transformation(self, print_output = True):
 
-        PatternRewriteWalker(CCnot_decomposition()).rewrite_module(self.module)
+        PatternRewriteWalker(CCnot_decomposition(),walk_regions_first=False,apply_recursively=False).rewrite_module(self.module)
 
         if print_output:
             print("\n\nCCNOT decomposition:\n")
@@ -151,11 +153,13 @@ if __name__ == "__main__":
         quantum_ir = QuantumIR()
         quantum_ir.run_dataclass()
         quantum_ir.run_generate_ir()
-        cProfile.run("quantum_ir.run_transformations()","profile")
+        quantum_ir.run_transformations()
+        cProfile.run("quantum_ir.metrics_transformation(print_output=False)","profile")
         p = pstats.Stats("profile")
-        p.strip_dirs().sort_stats("cumulative").print_stats(20)
-        p.strip_dirs().sort_stats("time").print_stats(20)
+        p.strip_dirs().sort_stats("cumulative").print_stats(30)
+        p.strip_dirs().sort_stats("time").print_stats(30)
         p.print_callers()
+        quantum_ir.run_transformations()
     except:
         print("Error in the execution of the program")
         raise
