@@ -21,7 +21,7 @@ def has_other_modifications(existingOp: Operation,passedOperation:set) -> bool:
         if isinstance(user_operation, MeasureOp):
             continue
         if(user_operation.operands[-1] == existingOp.res): # if the SSAValue is used as a target
-            if(str(user_operation) in passedOperation): # and the use happens before the current operation
+            if(user_operation in passedOperation): # and the use happens before the current operation
                 return True
         else:
             continue
@@ -291,7 +291,7 @@ class CSEDriver:
         if isinstance(op, InitOp) or isinstance(op, ModuleOp) or isinstance(op, FuncOp) or isinstance(op, MeasureOp):
             return
 
-        self.passedOperations.add(str(op))
+        self.passedOperations.add(op)
 
         # check if CCNotOp has two equal control qubits.
         # In that case we can replace it with a CNotOp
