@@ -31,7 +31,7 @@ class InPlacing(RewritePattern):
                     continue
                 
                 # if the control has uses after the considered cnot chain, its value cannot be changed.
-                if str(current_userop) not in self.passedOperation:
+                if current_userop not in self.passedOperation:
                     used = True
                     break
 
@@ -47,7 +47,6 @@ class InPlacing(RewritePattern):
             return
         
         if isinstance(op,InitOp):
-            self.maxqubit=int(op.res._name.split('_')[0][1:])
             return
 
 
@@ -55,7 +54,7 @@ class InPlacing(RewritePattern):
         
         previous_op = op._prev_op
         # Add the operation to the set of passed operations, regardless of it matching the inplacing pattern.
-        self.passedOperation.add(str(op))
+        self.passedOperation.add(op)
 
         # Start of the program.
         if previous_op is None:
@@ -73,10 +72,10 @@ class InPlacing(RewritePattern):
             next_op = op._next_op
             while ((next_op.name == "quantum.cnot" or next_op.name == "quantum.not") and op.res._name.split('_')[0] == next_op.res._name.split('_')[0]):
                 if next_op.name =="quantum.not":
-                    self.passedOperation.add(str(next_op))
+                    self.passedOperation.add(next_op)
                     next_op = next_op._next_op
                     continue
-                self.passedOperation.add(str(op))
+                self.passedOperation.add(op)
                 cnot_list.append(next_op)
                 next_op = next_op._next_op
             
@@ -96,12 +95,11 @@ class InPlacing(RewritePattern):
             # In the other cnots, substitute the result of cnot with the unused qubit with the unused qubit.
             qubit_to_pass = unused_qubit
             builder = Builder.before(cnot_list[0])
-            previous = previous_op
             for cnot in cnot_list:
                 if cnot is not cnot_unused_control:
                     newcnot = builder.insert(CNotOp.from_value(cnot.control, qubit_to_pass))
                     newcnot.res._name = qubit_to_pass._name.split('_')[0] + "_" + str(int(qubit_to_pass._name.split('_')[1]) + 1)
-                    self.passedOperation.add(str(newcnot)) # add the new op to the set of passed operations
+                    self.passedOperation.add(newcnot) # add the new op to the set of passed operations
                     qubit_to_pass = newcnot.res
 
             # last element of cnot_list is the last operation of the chain. Take its uses to substitute the new
@@ -109,8 +107,8 @@ class InPlacing(RewritePattern):
             uses = cnot_list[-1].res.uses.copy()
             future_set = set() # set of the future uses of the last cnot result
             for use in uses:
-                
-                if str(use.operation) in self.passedOperation: # already passed operation
+
+                if use.operation in self.passedOperation: # already passed operation
                     continue
                 else: # future operation
                     future_set.add(use.operation)
