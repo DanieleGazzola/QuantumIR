@@ -82,52 +82,18 @@ def metrics(circuit):
     gate_count = circuit.size()
 
     # Count T gates
-    dag = circuit_to_dag(circuit)
-    t_gate_count = sum(1 for node in dag.topological_op_nodes() if node.name in ["t", "tdg"])
+    t_gate_count = circuit.count_ops()['t'] + circuit.count_ops()['tdg']
 
-    # T gate depth (custom function)
-    t_gate_depth = measure_t_gate_depth(dag)
-
-    # Critical path length
-    critical_path_length = calculate_critical_path_length(dag)
+    # T gate depth 
+    t_gate_depth = circuit.depth(lambda gate: gate[0].name in ['t', 'tdg'])
 
     return {
         "Depth": depth,
         "Width": width,
         "Gate Count": gate_count,
         "T Gate Count": t_gate_count,
-        "T Gate Depth": t_gate_depth,
-        "Critical Path Length": critical_path_length
+        "T Gate Depth": t_gate_depth
     }
-
-def measure_t_gate_depth(dag):
-    """Measure T gate depth in a circuit DAG."""
-    t_gate_layers = []
-    for layer in dag.layers():
-        graph = layer["graph"]
-        t_gates_in_layer = [node for node in graph.op_nodes() if node.name in ["t", "tdg"]]
-        if t_gates_in_layer:
-            t_gate_layers.append(t_gates_in_layer)
-
-    # The number of layers with T gates determines T gate depth
-    return len(t_gate_layers)
-
-def calculate_critical_path_length(dag):
-    """Calculate the critical path length in a DAG."""
-    longest_path_length = {node: 0 for node in dag.topological_op_nodes()}
-
-    # Traverse nodes in topological order
-    for node in dag.topological_op_nodes():
-        # Update the path length for all successors
-        for successor in dag.successors(node):
-            if isinstance(successor, DAGOpNode):
-                longest_path_length[successor] = max(
-                    longest_path_length[successor],
-                    longest_path_length[node] + 1
-                )
-
-    # Return the maximum path length across all nodes
-    return max(longest_path_length.values())
 
 ######### MAIN #########
 

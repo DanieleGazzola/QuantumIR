@@ -1,32 +1,29 @@
-#!/bin/bash
+start_file="sha-256_untilsat.v"
+end_file="sha-256_untilsat.v"
 
-# Array to store failed circuits
-failed_circuits=()
+start=false
+for file in "$dir"/*; do
+    filename=$(basename "$file")
+    basefile=${filename%%.*}
+    outname=${basefile%%.*}
 
-for file in "truth-tables"/*.csv
-do
-  # Get the base name of the file without the directory and extension
-  base_name=$(basename "$file" .csv)
+    if [[ "$start" == false ]]; then
+      if [[ "$(basename "$file")" == "$start_file" ]]; then
+        start=true
+      else
+        continue
+      fi
+    fi
 
-  cd build
-  ./verilog_to_json ../test-inputs/$base_name.sv >> ../test-outputs/tested_circuits.txt
-  cd ..
-  
-  if ! python3 validate.py "$base_name"; then
-    failed_circuits+=("$base_name")
-  fi
+    echo "Processing $filename"
+    ./run.sh "crypto_benchmarks/$filename" -m > test-outputs/${outname}.metrics
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "Error processing $filename"
+        exit $exit_code
+    fi
 
-  echo
-  echo "----------------------------------------"
-  echo
+    if [[ "$(basename "$file")" == "$end_file" ]]; then
+      break
+    fi
 done
-
-if [ ${#failed_circuits[@]} -ne 0 ]; then
-  echo "The following circuits didn't pass their tests:"
-  for failed_circuit in "${failed_circuits[@]}"
-  do
-    echo "- $failed_circuit"
-  done
-else
-  echo "All circuits passed their tests!"
-fi
