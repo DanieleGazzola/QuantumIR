@@ -85,7 +85,7 @@ def metrics(circuit):
     t_gate_count = circuit.count_ops()['t'] + circuit.count_ops()['tdg']
 
     # T gate depth 
-    t_gate_depth = circuit.depth(lambda gate: gate[0].name in ['t', 'tdg'])
+    t_gate_depth = circuit.depth(lambda instr: instr.operation.name in ['t', 'tdg'])
 
     return {
         "Depth": depth,

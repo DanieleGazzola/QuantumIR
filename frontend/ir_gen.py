@@ -19,7 +19,7 @@ from dialect.dialect import (
     FuncOp,
 )
 
-from JSON_to_DataClasses import (
+from backend.JSON_to_DataClasses import (
     ASTNode,
     Assignment,
     BinaryOp,

@@ -1,6 +1,6 @@
 import os
 
-import JSON_to_DataClasses
+import backend.JSON_to_DataClasses as JSON_to_DataClasses
 from xdsl.printer import Printer
 from frontend.in_placing import InPlacing
 from frontend.ir_gen import IRGen
@@ -77,6 +77,7 @@ class QuantumIR():
 
             start_len = len(module.body.block._first_op.body.block.ops)
             
+            print("\nPerforming Remove Unused Operations...")
             PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module)
 
             # check if any unused operations were removed
@@ -84,11 +85,12 @@ class QuantumIR():
                 print("\n\nRemoved unused operations")
                 Printer().print_op(module)
             else:
-                print("\n\nNo unused operations to remove\n")
+                print("No unused operations to remove\n")
 
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
             clone_len = len(module.body.block._first_op.body.block.ops)
+            print("\nPerforming Common Subexpression Elimination...")
             CommonSubexpressionElimination().apply(module)
 
             # check if any common subexpressions were eliminated
@@ -96,9 +98,10 @@ class QuantumIR():
                 print("\n\nCommon subexpression elimination")
                 Printer().print_op(module)
             else:
-                print("\n\nNo common subexpressions to eliminate\n")
+                print("No common subexpressions to eliminate\n")
         
             clone_len = len(module.body.block._first_op.body.block.ops)
+            print("\nPerforming Hermitian Gates Elimination...")
             HermitianGatesElimination().apply(module)
 
             # check if any common subexpressions were eliminated
@@ -106,9 +109,10 @@ class QuantumIR():
                 print("\n\nHermitian elimination")
                 Printer().print_op(module)
             else:
-                print("\n\nNo Hermitian eliminations to be performed\n")
+                print("No Hermitian eliminations to be performed\n")
 
             clone_len = len(module.body.block._first_op.body.block.ops)
+            print("\nPerforming Inplacing...")
             # apply_recusively = False in order to not apply it to new operation inserted by the pattern itself
             PatternRewriteWalker(InPlacing(),walk_regions_first=False,apply_recursively=False).rewrite_module(module)
 
@@ -117,14 +121,15 @@ class QuantumIR():
                 print("\n\nInplacing")
                 Printer().print_op(module)
             else:
-                print("\n\nNo inplacing to be performed\n")
+                print("No inplacing to be performed\n")
             
+            # renumber qubits after all transformations
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
             # check if there were no changes in the last iteration
             if start_len == len(module.body.block._first_op.body.block.ops):
                 if print_output: 
-                    print("\n\nNo more transformations possible\n")
+                    print("\nNo more transformations possible\n")
                 break
 
 
@@ -139,6 +144,7 @@ class QuantumIR():
     # in order to apply metrics for validation
     def metrics_transformation(self, print_output = True):
 
+        print("Performing CCNOT decomposition...")
         PatternRewriteWalker(CCnot_decomposition(),walk_regions_first=False,apply_recursively=False).rewrite_module(self.module)
 
         if print_output:
@@ -159,6 +165,3 @@ if __name__ == "__main__":
     except:
         print("Error in the execution of the program")
         raise
-
-# quantum_ir.metrics_transformation()
-# quantum_ir.run_transformations()

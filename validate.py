@@ -73,7 +73,7 @@ def generate_quantum_truth_table(first_op, qubit_number, init_number, output_num
 def generate_classical_truth_table(circuit_name):
     classical_truth_table = {}
 
-    with open(f'truth-tables/{circuit_name}.csv', 'r') as file:
+    with open(f'test-inputs/truth-tables/{circuit_name}.csv', 'r') as file:
         csv_reader = csv.DictReader(file)
         
         out_columns = [col for col in csv_reader.fieldnames if col.startswith('out')]
