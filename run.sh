@@ -1,6 +1,6 @@
 #!/bin/bash
 
-clear
+#clear
 
 # Check if a filename is provided
 if [ -z "$1" ]; then
@@ -10,6 +10,7 @@ fi
 
 # Set the filename and shift it out of the arguments
 filename="$1"
+echo "Processing file: $filename"
 shift
 basefile=$(basename "$filename")
 outname=${basefile%%.*}
@@ -21,13 +22,14 @@ cd build
 rm -f ../test-outputs/${outname}.out
 touch ../test-outputs/${outname}.out
 
-# Perform transformations
-./verilog_to_json ../test-inputs/${filename} > ../test-outputs/${outname}.out
+# Start program
+./verilog_to_json ../${filename} > ../test-outputs/${outname}.out
 exit_code=$?
 
 if [ $exit_code -eq 0 ]; then
     cd ..
-    python3 main.py > test-outputs/${outname}.out 2>&1
+    echo ${filename} > "test-outputs/${outname}.out"
+    (time python3 main.py) &>> "test-outputs/${outname}.out"
 else
     echo "Error in SLANG compilation."
     exit $exit_code
@@ -61,9 +63,9 @@ done
 
 # Run optional steps
 if $run_validate; then
-    python3 validate.py ${outname}
+    python3 validate.py ${outname} >> "test-outputs/${outname}.out"
 fi
 
 if $run_metrics; then
-    python3 metrics.py
+    python3 metrics.py >> "test-outputs/${outname}.out"
 fi
