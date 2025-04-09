@@ -169,8 +169,35 @@ class ExpressionStatement:
 
 
 ##################################################################################################################################################################
+### Below are methods to traverse the JSON tree and transform it in Dataclasses
+### The global variables are used to measure metrics in the input file
+
+# Number of AND gates in input file
+num_ands = 0
+# Number of OR gates in input file
+num_ors = 0
+# Number of NOT gates in input file
+num_nots = 0
+# Number of XOR gates in input file
+num_xors = 0
+# Number of inputs in input file
+num_inputs = 0
+# Number of outputs in input file
+num_outputs = 0
+# Number of local variables in input file
+num_locals = 0
+# List of names to distinguish between local variables and inputs/outputs
+inout_names = []
 
 def from_dict(data: Dict[str, Any]) -> ASTNode:
+    global num_ands
+    global num_ors
+    global num_nots
+    global num_xors
+    global num_inputs
+    global num_outputs
+    global num_locals
+    global inout_names
 
     if isinstance(data, list):
         return [from_dict(item) for item in data]
@@ -186,8 +213,15 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
         if kind == 'Assignment':
             return Assignment(type=data['type'], left=from_dict(data['left']), right=from_dict(data['right']), isNonBlocking=data['isNonBlocking'], **common_fields)
         elif kind == 'BinaryOp':
+            if data['op'] == 'BinaryAnd':
+                num_ands += 1
+            elif data['op'] == 'BinaryOr':
+                num_ors += 1
+            elif data['op'] == 'BinaryXor':
+                num_xors += 1
             return BinaryOp(type=data['type'], op=data['op'], left=from_dict(data['left']), right=from_dict(data['right']), **common_fields)
         elif kind == 'UnaryOp':
+            num_nots += 1
             return UnaryOp(type=data['type'], op=data['op'], operand=from_dict(data['operand']), **common_fields)
         elif kind == 'CompilationUnit':
             return CompilationUnit(**common_fields)
@@ -209,12 +243,19 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
         elif kind == 'NetType':
             return NetType(type=data['type'], **common_fields)
         elif kind == 'Port':
+            if(data['direction']=='Out'):
+                inout_names.append(data['name'])
+                num_outputs += 1
+            elif(data['direction']=='In'): 
+                inout_names.append(data['name'])
+                num_inputs += 1
             return Port(type=data['type'], direction=data['direction'], internalSymbol=data['internalSymbol'], **common_fields)
         elif kind == 'PrimitiveInstance':
             return PrimitiveInstance(primitiveType=data['primitiveType'], ports=from_dict(data['ports']), **common_fields)
         elif kind == 'Root':
             return Root(members=from_dict(data['members']), **common_fields)
         elif kind == 'Variable':
+            if(data['name'] not in inout_names): num_locals += 1
             return Variable(type=data['type'], lifetime=data['lifetime'], **common_fields)
         elif kind == 'ProceduralBlock':
             return ProceduralBlock(body=from_dict(data['body']), procedureKind=data['procedureKind'], **common_fields)
@@ -234,6 +275,23 @@ def from_dict(data: Dict[str, Any]) -> ASTNode:
 
 # function that takes as input a JSON string and returns a Root dataclass
 def json_to_dataclass(json_data: str) -> Root:
+    global num_ands
+    global num_ors
+    global num_nots
+    global num_xors
+    global num_inputs
+    global num_outputs
+    global num_locals
+    global inout_names
+    num_ands = 0
+    num_ors = 0
+    num_nots = 0
+    num_xors = 0
+    num_inputs = 0
+    num_outputs = 0
+    num_locals = 0
+    inout_names = []
+    # Load the JSON data
     data = json.loads(json_data)
     return from_dict(data)
 
