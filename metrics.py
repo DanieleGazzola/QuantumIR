@@ -1,19 +1,23 @@
 from main import QuantumIR
 
 from qiskit import QuantumCircuit
-from qiskit_aer import AerSimulator
-from qiskit.converters import circuit_to_dag
-from qiskit.dagcircuit import DAGOpNode
-
-import numpy as np
 
 import sys
-import csv
+import time
+import tracemalloc
+
 
 ######### FUNCTIONS #########
 
 # Function to create a quantum circuit from the IR
 def create_circuit(first_op, qubit_number, output_number):
+    
+    not_count = 0
+    cnot_count = 0
+    ccnot_count = 0
+    tgate_count = 0
+    tdagger_count = 0
+    hgate_count = 0
 
     circuit = QuantumCircuit(qubit_number, output_number)
     current = first_op
@@ -26,16 +30,22 @@ def create_circuit(first_op, qubit_number, output_number):
         indexes = [int(name.split("_")[0][1:]) for name in operands_names]
 
         if current.name == "quantum.not":
+            not_count += 1
             circuit.x(indexes[0])
         if current.name  == "quantum.cnot":
+            cnot_count += 1
             circuit.cx(indexes[0], indexes[1])
         if current.name == "quantum.ccnot":
+            ccnot_count += 1
             circuit.ccx(indexes[0], indexes[1], indexes[2])
         if current.name == "quantum.h":
+            hgate_count += 1
             circuit.h(indexes[0])
         if current.name == "quantum.t":
+            tgate_count += 1
             circuit.t(indexes[0])
         if current.name == "quantum.tdagger":
+            tdagger_count += 1
             circuit.tdg(indexes[0])
         if current.name == "quantum.measure":
             circuit.measure(indexes[0], cbit_index)
@@ -43,7 +53,15 @@ def create_circuit(first_op, qubit_number, output_number):
         
         current = current.next_op
     
-    return circuit
+    gatelist ={}
+    gatelist["Quantum Not"] = not_count
+    gatelist["Quantum CNot"] = cnot_count
+    gatelist["Quantum CCNot"] = ccnot_count
+    gatelist["Quantum T"] = tgate_count
+    gatelist["Quantum TDagger"] = tdagger_count
+    gatelist["Quantum H"] = hgate_count
+
+    return [circuit,gatelist]
 
 # Support function to return information about the quantum circuit under analysis
 def get_quantum_circuit_info(input_args, first_op):
@@ -97,24 +115,33 @@ def metrics(circuit):
 
 ######### MAIN #########
 
-for i in range(2):
 
-    # Generate IR
-    quantum_ir = QuantumIR()
-    quantum_ir.run_dataclass()
-    quantum_ir.run_generate_ir(print_output = False)
+# Generate IR
+tracemalloc.start()
+basictime_start = time.perf_counter()
+quantum_ir = QuantumIR()
+quantum_ir.run_dataclass()
+quantum_ir.run_generate_ir(print_output = False)
+print("\nGenerating basic quantum circuit with CCNOT decomposition")
+quantum_ir.metrics_transformation(print_output = False)
+basictime_end = time.perf_counter()
+_ , basic_mempeak = tracemalloc.get_traced_memory()
+basic_ir = quantum_ir
+tracemalloc.stop()
 
-    if i == 0:
-        print("\nGenerating basic quantum circuit with CCNOT decomposition")
-        quantum_ir.metrics_transformation(print_output = False)
-        basic_ir = quantum_ir
-    if i == 1:
-        print("\nGenerating optimized quantum circuit with CCNOT decomposition")
-        quantum_ir.run_transformations(print_output = False)
-        quantum_ir.metrics_transformation(print_output = False)
-        quantum_ir.run_transformations(print_output = False)
-        transformed_ir = quantum_ir
-
+tracemalloc.start()
+opttime_start = time.perf_counter()
+quantum_ir = QuantumIR()
+quantum_ir.run_dataclass()
+quantum_ir.run_generate_ir(print_output = False)
+print("\nGenerating optimized quantum circuit with CCNOT decomposition")
+quantum_ir.run_transformations(print_output = False)
+quantum_ir.metrics_transformation(print_output = False)
+quantum_ir.run_transformations(print_output = False)
+opttime_end = time.perf_counter()
+_ , opt_mempeak = tracemalloc.get_traced_memory()
+transformed_ir = quantum_ir
+tracemalloc.stop()
 # Metrics for basic circuit
 
 module = basic_ir.module
@@ -126,7 +153,7 @@ first_op = funcOp.body.block._first_op
 
 info_basic = get_quantum_circuit_info(input_args, first_op)
 
-circuit = create_circuit(first_op, info_basic["qubit_number"], info_basic["output_number"])
+[circuit,basic_gatelist] = create_circuit(first_op, info_basic["qubit_number"], info_basic["output_number"])
 
 basic_metrics = metrics(circuit)
 
@@ -141,11 +168,14 @@ first_op = funcOp.body.block._first_op
 
 info_transformed = get_quantum_circuit_info(input_args, first_op)
 
-circuit = create_circuit(first_op, info_transformed["qubit_number"], info_transformed["output_number"])
+[circuit,opt_gatelist] = create_circuit(first_op, info_transformed["qubit_number"], info_transformed["output_number"])
 
 transformed_metrics = metrics(circuit)
 
 # Output
+print("\nGate list for the basic circuit:")
+for key, value in basic_gatelist.items():
+    print(f"{key}: {value}")
 
 print("\nMetrics for the basic circuit:")
 for key, value in basic_metrics.items():
@@ -156,6 +186,10 @@ print("\nNumber of input qubits: ", info_basic["input_number"],
       "\nTotal qubits used: ", info_basic["qubit_number"], 
       "\nNumber of output bits: ", info_basic["output_number"])
 
+print("\nGate list for the optimized circuit:")
+for key, value in opt_gatelist.items():
+    print(f"{key}: {value}")
+
 print("\nMetrics for the optimized circuit:")
 for key, value in transformed_metrics.items():
     print(f"{key}: {value}")
@@ -165,4 +199,9 @@ print("\nNumber of input qubits: ", info_transformed["input_number"],
       "\nTotal qubits used: ", info_transformed["qubit_number"], 
       "\nNumber of output bits: ", info_transformed["output_number"])
 
+print(f"\nBasic circuit generation time: {basictime_end - basictime_start:.3f} seconds")
+print(f"Optimized circuit generation time: {opttime_end - opttime_start:.3f} seconds")
+
+print(f"\nBasic circuit memory peak: {basic_mempeak / 10**6:.3f} MB")
+print(f"Optimized circuit memory peak: {opt_mempeak / 10**6:.3f} MB")
 sys.exit(0)
