@@ -62,15 +62,6 @@ class QuantumIR():
 
         # Convert JSON to DataClasses and write it to a file
         self.root = JSON_to_DataClasses.json_to_dataclass(json_data)
-        # Print input file metrics
-        print("\n\nInput file metrics:") 
-        print(f"    Number of inputs: {JSON_to_DataClasses.num_inputs}")
-        print(f"    Number of outputs: {JSON_to_DataClasses.num_outputs}")
-        print(f"    Number of local variables: {JSON_to_DataClasses.num_locals}")
-        print(f"    Number of AND gates: {JSON_to_DataClasses.num_ands}")
-        print(f"    Number of OR gates: {JSON_to_DataClasses.num_ors}")
-        print(f"    Number of NOT gates: {JSON_to_DataClasses.num_nots}")
-        print(f"    Number of XOR gates: {JSON_to_DataClasses.num_xors}")
         
         os.makedirs(self.output_dir, exist_ok=True)
         with open(self.dataclass_output, 'w') as file:

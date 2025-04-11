@@ -1,10 +1,12 @@
 from main import QuantumIR
+import backend.JSON_to_DataClasses as JSON_to_DataClasses
 
 from qiskit import QuantumCircuit
 
 import sys
 import time
 import tracemalloc
+import gc
 
 
 ######### FUNCTIONS #########
@@ -116,7 +118,7 @@ def metrics(circuit):
 ######### MAIN #########
 
 
-# Generate IR
+# Generate basic IR, measure time and memory
 tracemalloc.start()
 basictime_start = time.perf_counter()
 quantum_ir = QuantumIR()
@@ -129,6 +131,10 @@ _ , basic_mempeak = tracemalloc.get_traced_memory()
 basic_ir = quantum_ir
 tracemalloc.stop()
 
+# Clean up memory
+gc.collect()
+
+# Generate optimized IR, measure time and memory
 tracemalloc.start()
 opttime_start = time.perf_counter()
 quantum_ir = QuantumIR()
@@ -142,6 +148,16 @@ opttime_end = time.perf_counter()
 _ , opt_mempeak = tracemalloc.get_traced_memory()
 transformed_ir = quantum_ir
 tracemalloc.stop()
+
+# Metrics input file
+print("\n\nInput file metrics:") 
+print(f"    Number of inputs: {JSON_to_DataClasses.num_inputs}")
+print(f"    Number of outputs: {JSON_to_DataClasses.num_outputs}")
+print(f"    Number of local variables: {JSON_to_DataClasses.num_locals}")
+print(f"    Number of AND gates: {JSON_to_DataClasses.num_ands}")
+print(f"    Number of OR gates: {JSON_to_DataClasses.num_ors}")
+print(f"    Number of NOT gates: {JSON_to_DataClasses.num_nots}")
+print(f"    Number of XOR gates: {JSON_to_DataClasses.num_xors}")
 # Metrics for basic circuit
 
 module = basic_ir.module
@@ -173,6 +189,7 @@ info_transformed = get_quantum_circuit_info(input_args, first_op)
 transformed_metrics = metrics(circuit)
 
 # Output
+print("\n################ BASIC CIRCUIT ################")
 print("\nGate list for the basic circuit:")
 for key, value in basic_gatelist.items():
     print(f"{key}: {value}")
@@ -186,6 +203,7 @@ print("\nNumber of input qubits: ", info_basic["input_number"],
       "\nTotal qubits used: ", info_basic["qubit_number"], 
       "\nNumber of output bits: ", info_basic["output_number"])
 
+print("\n################ OPTIMIZED CIRCUIT ################")
 print("\nGate list for the optimized circuit:")
 for key, value in opt_gatelist.items():
     print(f"{key}: {value}")
@@ -199,6 +217,7 @@ print("\nNumber of input qubits: ", info_transformed["input_number"],
       "\nTotal qubits used: ", info_transformed["qubit_number"], 
       "\nNumber of output bits: ", info_transformed["output_number"])
 
+print("\n################ PERFORMANCE ################")
 print(f"\nBasic circuit generation time: {basictime_end - basictime_start:.3f} seconds")
 print(f"Optimized circuit generation time: {opttime_end - opttime_start:.3f} seconds")
 
