@@ -188,6 +188,13 @@ info_transformed = get_quantum_circuit_info(input_args, first_op)
 
 transformed_metrics = metrics(circuit)
 
+# Calculate saving percentage
+savings = {}
+for key, value in basic_metrics.items():
+    if key in transformed_metrics:
+        savings[key] = (value - transformed_metrics[key]) / value * 100
+    
+
 # Output
 print("\n################ BASIC CIRCUIT ################")
 print("\nGate list for the basic circuit:")
@@ -210,7 +217,8 @@ for key, value in opt_gatelist.items():
 
 print("\nMetrics for the optimized circuit:")
 for key, value in transformed_metrics.items():
-    print(f"{key}: {value}")
+    saving = savings.get(key, 0)
+    print(f"{key}: {value} ({saving:.2f}%)")
 
 print("\nNumber of input qubits: ", info_transformed["input_number"], 
       "\nNumber of support qubits: ", info_transformed["init_number"], 
