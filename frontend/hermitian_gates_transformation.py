@@ -46,8 +46,7 @@ class OperationInfo:
     def __init__(self, op: Operation):
         self.op = op
         self.hash = hash((self.name, tuple(operand._name for operand in self.operands[:-1]), self.operands[-1]._name.split('_')[0]))
-    
-    
+        
     @property
     def name(self):
         return self.op.name
@@ -104,7 +103,8 @@ class HGEDriver:
 
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
-    
+    hge_eliminations: int = 0
+
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
@@ -124,7 +124,8 @@ class HGEDriver:
         # if there are no uses delete the operations
         # also remove op from the _know_ops to avoid getting matched again
         if all(not r.uses for r in op.results):
-            self._known_ops.pop(op)
+            opInfo = OperationInfo(op)
+            self._known_ops.pop(opInfo)
             self._commit_erasure(op)
             self._commit_erasure(existing)
 
@@ -142,18 +143,17 @@ class HGEDriver:
         # MeasureOp may need a rename but is never simplified
         if isinstance(op, MeasureOp):
             return
-
         opInfo = OperationInfo(op)
         # check if the operation is already known
         if existing := self._known_ops.get(opInfo):
-
             # if the qubit is not used in between we can delete the operations
             if not has_uses_between(existing, op):
                 self._replace_and_delete(op, existing)
+                self.hge_eliminations += 2
                 return
         
         # if the operation is not known we add it to the known operations
-        self._known_ops[op] = op
+        self._known_ops[opInfo] = op
         return
 
     # simplify the block, it sweeps all the operations in the block
@@ -205,5 +205,10 @@ class HGEDriver:
 # This class is used to apply the transformation to the MLIR in the main program
 class HermitianGatesElimination(ModulePass):
 
+    hgeDriver: HGEDriver 
+    hge_eliminations : int 
     def apply(self, op: ModuleOp) -> None:
-        HGEDriver().simplify(op)
+        self.hgeDriver = HGEDriver()
+        self.hge_eliminations = 0
+        self.hgeDriver.simplify(op)
+        self.hge_eliminations = self.hgeDriver.hge_eliminations
