@@ -225,6 +225,13 @@ print("\nNumber of input qubits: ", info_transformed["input_number"],
       "\nTotal qubits used: ", info_transformed["qubit_number"], 
       "\nNumber of output bits: ", info_transformed["output_number"])
 
+print("\nTransformations:",
+    "\nNumber of CSE: ", quantum_ir.num_cse,
+    "(CNOT-to-INIT and CCNOT-to-CNOT substitution: ", quantum_ir.cse_samequbit,")",
+    "\nNumber of DCE: ", quantum_ir.num_dce,
+    "\nNumber of Inplacing: ", quantum_ir.num_inplacing,
+    "\nNumber of HGE: ", quantum_ir.num_hge)
+
 print("\n################ PERFORMANCE ################")
 print(f"\nBasic circuit generation time: {basictime_end - basictime_start:.3f} seconds")
 print(f"Optimized circuit generation time: {opttime_end - opttime_start:.3f} seconds")

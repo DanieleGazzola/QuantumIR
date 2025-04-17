@@ -251,12 +251,15 @@ class CSEDriver:
 
     passedOperations : set
 
+    same_qubit: int
+
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
         self.qubitHistories = {}
         self.qubitHashes = {}
         self.passedOperations = set()
+        self.same_qubit = 0
 
     def _commit_erasure(self, op: Operation):
         if op.parent is not None:
@@ -296,6 +299,7 @@ class CSEDriver:
         # check if CCNotOp has two equal control qubits.
         # In that case we can replace it with a CNotOp
         if isinstance(op, CCNotOp) and (op.control1 == op.control2):
+            self.same_qubit += 1
             self.builder = Builder.before(op)
             cnotOp = self.builder.insert(CNotOp.from_value(op.control1, op.target))
             self._replace_and_delete(op, cnotOp)
@@ -304,6 +308,7 @@ class CSEDriver:
         # check if CNotOp has equal control and target qubits.
         # In that case we can replace it with an InitOp
         if isinstance(op, CNotOp) and (op.control == op.target):
+            self.same_qubit += 1
             self.builder= Builder.before(op)
             initOp = self.builder.insert(InitOp.from_value(IntegerType(1)))
             initOp.res._name = "q" + str(self.max_qubit + 1) + "_0"
@@ -379,11 +384,13 @@ class CSEDriver:
                             ##### MAIN CLASS TO INVOKE THE TRANSFORMATION #####
 
 class CommonSubexpressionElimination(ModulePass):
+    same_qubit: int = 0 
 
     cseDriver: CSEDriver
 
     def apply(self, op: ModuleOp) -> None:
         self.cseDriver.simplify(op)
+        self.same_qubit += self.cseDriver.same_qubit
 
     def __init__(self):
         self.cseDriver = CSEDriver()

@@ -34,11 +34,13 @@ class QuantumIR():
     # MLIR root
     module : ModuleOp
 
+
     # Number of times each transformation is executed
     num_cse : int = 0
     num_dce : int = 0
     num_inplacing : int = 0
     num_hge : int = 0
+    cse_samequbit : int = 0
     
     def __init__(self):
         pass
@@ -91,10 +93,11 @@ class QuantumIR():
             PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module)
 
             # check if any unused operations were removed
-            if print_output and start_len != len(module.body.block._first_op.body.block.ops):
+            if start_len != len(module.body.block._first_op.body.block.ops): 
                 self.num_dce += 1
-                print("\n\nRemoved unused operations")
-                Printer().print_op(module)
+                if print_output:
+                    print("\n\nRemoved unused operations")
+                    Printer().print_op(module)
             #elif start_len == len(module.body.block._first_op.body.block.ops):   
                 #print("No unused operations to remove\n")
 
@@ -102,13 +105,16 @@ class QuantumIR():
 
             clone_len = len(module.body.block._first_op.body.block.ops)
             #print("\nPerforming Common Subexpression Elimination...")
-            CommonSubexpressionElimination().apply(module)
-
+            cse = CommonSubexpressionElimination()
+            cse.apply(module)
+            self.cse_samequbit += cse.same_qubit
+            
             # check if any common subexpressions were eliminated
-            if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
+            if clone_len != len(module.body.block._first_op.body.block.ops):
                 self.num_cse += 1
-                print("\n\nCommon subexpression elimination")
-                Printer().print_op(module)
+                if print_output: 
+                    print("\n\nCommon subexpression elimination")
+                    Printer().print_op(module)
             #elif clone_len == len(module.body.block._first_op.body.block.ops):
                 #print("No common subexpressions to eliminate\n")
         
@@ -117,10 +123,11 @@ class QuantumIR():
             HermitianGatesElimination().apply(module)
 
             # check if any common subexpressions were eliminated
-            if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
+            if clone_len != len(module.body.block._first_op.body.block.ops): 
                 self.num_hge += 1
-                #print("\n\nHermitian elimination")
-                Printer().print_op(module)
+                if print_output:
+                    print("\n\nHermitian elimination")
+                    Printer().print_op(module)
             #elif clone_len == len(module.body.block._first_op.body.block.ops):
                 #print("No Hermitian eliminations to be performed\n")
 
@@ -130,10 +137,11 @@ class QuantumIR():
             PatternRewriteWalker(InPlacing(),walk_regions_first=False,apply_recursively=False).rewrite_module(module)
 
             # check if any inplacing has been done
-            if print_output and clone_len != len(module.body.block._first_op.body.block.ops):
+            if clone_len != len(module.body.block._first_op.body.block.ops):
                 self.num_inplacing += 1
-                #print("\n\nInplacing")
-                Printer().print_op(module)
+                if print_output:
+                    print("\n\nInplacing")
+                    Printer().print_op(module)
             #elif clone_len == len(module.body.block._first_op.body.block.ops):
                 #print("No inplacing to be performed\n")
             
@@ -177,12 +185,6 @@ def main():
         quantum_ir.metrics_transformation()
         quantum_ir.run_transformations()
 
-        print("\n\nTransformation summary:")
-        print(f"    Number of CSE: {quantum_ir.num_cse}")
-        print(f"    Number of DCE: {quantum_ir.num_dce}")
-        print(f"    Number of Inplacing: {quantum_ir.num_inplacing}")
-        print(f"    Number of HGE: {quantum_ir.num_hge}")
-        print("\n\n")
     except:
         print("Error in the execution of the program")
         raise
