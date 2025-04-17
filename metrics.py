@@ -102,10 +102,16 @@ def metrics(circuit):
     gate_count = circuit.size()
 
     # Count T gates
-    t_gate_count = circuit.count_ops()['t'] + circuit.count_ops()['tdg']
-
+    try :
+        t_gate_count = circuit.count_ops()['t'] + circuit.count_ops()['tdg']
+    except KeyError:
+        t_gate_count = 0
+    
     # T gate depth 
-    t_gate_depth = circuit.depth(lambda instr: instr.operation.name in ['t', 'tdg'])
+    try:
+        t_gate_depth = circuit.depth(lambda instr: instr.operation.name in ['t', 'tdg'])
+    except KeyError:
+        t_gate_depth = 0
 
     return {
         "Depth": depth,
@@ -139,11 +145,11 @@ tracemalloc.start()
 opttime_start = time.perf_counter()
 quantum_ir = QuantumIR()
 quantum_ir.run_dataclass()
-quantum_ir.run_generate_ir(print_output = False)
+quantum_ir.run_generate_ir(print_output = True)
 print("\nGenerating optimized quantum circuit with CCNOT decomposition")
-quantum_ir.run_transformations(print_output = False)
-quantum_ir.metrics_transformation(print_output = False)
-quantum_ir.run_transformations(print_output = False)
+quantum_ir.run_transformations(print_output = True)
+quantum_ir.metrics_transformation(print_output = True)
+quantum_ir.run_transformations(print_output = True)
 opttime_end = time.perf_counter()
 _ , opt_mempeak = tracemalloc.get_traced_memory()
 transformed_ir = quantum_ir
@@ -192,7 +198,10 @@ transformed_metrics = metrics(circuit)
 savings = {}
 for key, value in basic_metrics.items():
     if key in transformed_metrics:
-        savings[key] = (value - transformed_metrics[key]) / value * 100
+        if value !=0:
+            savings[key] = (value - transformed_metrics[key]) / value * 100
+        else:
+            savings[key] = 0
     
 
 # Output
@@ -226,11 +235,17 @@ print("\nNumber of input qubits: ", info_transformed["input_number"],
       "\nNumber of output bits: ", info_transformed["output_number"])
 
 print("\nTransformations:",
-    "\nNumber of CSE: ", quantum_ir.num_cse,
-    "(CNOT-to-INIT and CCNOT-to-CNOT substitution: ", quantum_ir.cse_samequbit,")",
-    "\nNumber of DCE: ", quantum_ir.num_dce,
-    "\nNumber of Inplacing: ", quantum_ir.num_inplacing,
-    "\nNumber of HGE: ", quantum_ir.num_hge)
+    "\nNumber of CSE: ", transformed_ir.num_cse,
+    "(CNOT-to-INIT and CCNOT-to-CNOT substitution: ", transformed_ir.cse_samequbit,")",
+    "\nNumber of DCE: ", transformed_ir.num_dce,
+    "\nNumber of Inplacing: ", transformed_ir.num_inplacing,
+    "\nNumber of HGE: ", transformed_ir.num_hge)
+
+print("\nEliminations:",
+    "\nCSE eliminations: ", transformed_ir.cse_eliminations,
+    "\nDCE eliminations: ", transformed_ir.dce_eliminations,
+    "\nInplacing eliminations: ", transformed_ir.inplacing_eliminations,
+    "\nHGE eliminations: ", transformed_ir.hge_eliminations)
 
 print("\n################ PERFORMANCE ################")
 print(f"\nBasic circuit generation time: {basictime_end - basictime_start:.3f} seconds")

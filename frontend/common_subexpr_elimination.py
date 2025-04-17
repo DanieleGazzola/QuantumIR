@@ -251,7 +251,8 @@ class CSEDriver:
 
     passedOperations : set
 
-    same_qubit: int
+    same_qubit: int = 0
+    cse_eliminations: int = 0
 
     def __init__(self):
         self._rewriter = Rewriter()
@@ -325,6 +326,7 @@ class CSEDriver:
                 and not both_measured(op, existing):
 
                 self._replace_and_delete(op, existing)
+                self.cse_eliminations += 1
                 return
         
         # if the operation is not known we add it to the known operations
@@ -385,12 +387,14 @@ class CSEDriver:
 
 class CommonSubexpressionElimination(ModulePass):
     same_qubit: int = 0 
+    cse_eliminations:int = 0
 
     cseDriver: CSEDriver
 
     def apply(self, op: ModuleOp) -> None:
         self.cseDriver.simplify(op)
         self.same_qubit += self.cseDriver.same_qubit
+        self.cse_eliminations += self.cseDriver.cse_eliminations
 
     def __init__(self):
         self.cseDriver = CSEDriver()

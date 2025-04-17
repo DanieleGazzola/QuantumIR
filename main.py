@@ -37,9 +37,13 @@ class QuantumIR():
 
     # Number of times each transformation is executed
     num_cse : int = 0
+    cse_eliminations: int = 0
     num_dce : int = 0
+    dce_eliminations: int = 0
     num_inplacing : int = 0
+    inplacing_eliminations: int = 0
     num_hge : int = 0
+    hge_eliminations: int = 0
     cse_samequbit : int = 0
     
     def __init__(self):
@@ -90,7 +94,9 @@ class QuantumIR():
             start_len = len(module.body.block._first_op.body.block.ops)
             
             #print("\nPerforming Remove Unused Operations...")
-            PatternRewriteWalker(RemoveUnusedOperations()).rewrite_module(module)
+            removeUnusedOp = RemoveUnusedOperations()
+            PatternRewriteWalker(removeUnusedOp).rewrite_module(module)
+            self.dce_eliminations += removeUnusedOp.eliminations
 
             # check if any unused operations were removed
             if start_len != len(module.body.block._first_op.body.block.ops): 
@@ -108,6 +114,7 @@ class QuantumIR():
             cse = CommonSubexpressionElimination()
             cse.apply(module)
             self.cse_samequbit += cse.same_qubit
+            self.cse_eliminations += cse.cse_eliminations
             
             # check if any common subexpressions were eliminated
             if clone_len != len(module.body.block._first_op.body.block.ops):
@@ -120,7 +127,9 @@ class QuantumIR():
         
             clone_len = len(module.body.block._first_op.body.block.ops)
             #print("\nPerforming Hermitian Gates Elimination...")
-            HermitianGatesElimination().apply(module)
+            hge = HermitianGatesElimination()
+            hge.apply(module)
+            self.hge_eliminations += hge.hge_eliminations
 
             # check if any common subexpressions were eliminated
             if clone_len != len(module.body.block._first_op.body.block.ops): 
@@ -133,9 +142,10 @@ class QuantumIR():
 
             clone_len = len(module.body.block._first_op.body.block.ops)
             #print("\nPerforming Inplacing...")
+            inPlacing = InPlacing()
             # apply_recusively = False in order to not apply it to new operation inserted by the pattern itself
-            PatternRewriteWalker(InPlacing(),walk_regions_first=False,apply_recursively=False).rewrite_module(module)
-
+            PatternRewriteWalker(inPlacing,walk_regions_first=False,apply_recursively=False).rewrite_module(module)
+            self.inplacing_eliminations += inPlacing.inplacing_eliminations
             # check if any inplacing has been done
             if clone_len != len(module.body.block._first_op.body.block.ops):
                 self.num_inplacing += 1
@@ -184,7 +194,7 @@ def main():
         quantum_ir.run_transformations()
         quantum_ir.metrics_transformation()
         quantum_ir.run_transformations()
-
+        
     except:
         print("Error in the execution of the program")
         raise
