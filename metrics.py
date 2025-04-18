@@ -242,10 +242,12 @@ print("\nTransformations:",
     "\nNumber of HGE: ", transformed_ir.num_hge)
 
 print("\nEliminations:",
-    "\nCSE eliminations: ", transformed_ir.cse_eliminations,
-    "\nDCE eliminations: ", transformed_ir.dce_eliminations,
-    "\nInplacing eliminations: ", transformed_ir.inplacing_eliminations,
-    "\nHGE eliminations: ", transformed_ir.hge_eliminations)
+    "\nCSE Gate eliminations: ", transformed_ir.cse_gate_elim,
+    "\nDCE Gate eliminations: ", transformed_ir.dce_gate_elim,
+    "\nDCE Init eliminations: ", transformed_ir.dce_init_elim,
+    "\nInplacing Gate eliminations: ", transformed_ir.inplacing_gate_elim,
+    "\nInplacing Init eliminations: ", transformed_ir.inplacing_init_elim,
+    "\nHGE eliminations: ", transformed_ir.hge_gate_elim)
 
 print("\n################ PERFORMANCE ################")
 print(f"\nBasic circuit generation time: {basictime_end - basictime_start:.3f} seconds")

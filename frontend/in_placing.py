@@ -13,7 +13,8 @@ class InPlacing(RewritePattern):
     rewriter : Rewriter
     maxqubit : int
     passedOperation: set
-    inplacing_eliminations: int = 0
+    inplacing_gate_elim: int = 0
+    inplacing_init_elim: int = 0
 
     def __init__(self):
         self.passedOperation = set()
@@ -100,7 +101,7 @@ class InPlacing(RewritePattern):
             for cnot in cnot_list:
                 if cnot is not cnot_unused_control:
                     newcnot = builder.insert(CNotOp.from_value(cnot.control, qubit_to_pass))
-                    self.inplacing_eliminations -=1 # consider the cnots that remain  
+                    self.inplacing_gate_elim -=1 # consider the cnots that remain  
                     newcnot.res._name = qubit_to_pass._name.split('_')[0] + "_" + str(int(qubit_to_pass._name.split('_')[1]) + 1)
                     self.passedOperation.add(newcnot) # add the new op to the set of passed operations
                     qubit_to_pass = newcnot.res
@@ -120,9 +121,9 @@ class InPlacing(RewritePattern):
             if not future_set:
                 for cnot in reversed(cnot_list):
                     self.rewriter.erase_op(cnot)
-                    self.inplacing_eliminations += 1
+                    self.inplacing_gate_elim += 1
                 self.rewriter.erase_op(init_op)
-                self.inplacing_eliminations += 1
+                self.inplacing_init_elim += 1
                 return
             
             # set not empty, need to replace the old result from the cnot chain with the new result of the inplaced
@@ -139,8 +140,8 @@ class InPlacing(RewritePattern):
             
             for cnot in reversed(cnot_list):
                 self.rewriter.erase_op(cnot)  
-                self.inplacing_eliminations += 1
+                self.inplacing_gate_elim += 1
             self.rewriter.erase_op(init_op) # erase the init op, it is not needed anymore
-            self.inplacing_eliminations += 1 
+            self.inplacing_init_elim += 1 
         else:
             return

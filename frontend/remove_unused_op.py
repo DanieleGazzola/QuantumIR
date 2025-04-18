@@ -17,8 +17,11 @@ def is_trivially_dead(op: Operation) -> bool:
 # Class to drive the removal of unused operations in the main program.
 class RemoveUnusedOperations(RewritePattern):
     eliminations: int = 0
-
+    init_eliminations: int = 0
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter):
         if is_trivially_dead(op) and op.parent is not None:
-            self.eliminations +=1
+            if op.name == "quantum.init":
+                self.init_eliminations += 1
+            else:
+                self.eliminations +=1
             rewriter.erase_op(op)
