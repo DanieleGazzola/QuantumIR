@@ -30,7 +30,8 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 # List of allowed filenames for validation
-allowed_files=("and.sv" "cse.sv" "full_adder.sv" "inplace.sv" "not.sv" "proceduralBlock.sv" "remove_unused.sv" "xorInPlace.sv")
+allowed_files=("test-inputs/and.sv" "test-inputs/cse.sv" "test-inputs/full_adder.sv" "test-inputs/inplace.sv" "test-inputs/not.sv" 
+"test-inputs/proceduralBlock.sv" "test-inputs/remove_unused.sv" "test-inputs/xorInPlace.sv")
 
 # Parse command-line arguments for optional steps
 run_validate=false
@@ -63,7 +64,7 @@ fi
 # Run optional steps
 if $run_validate; then
     cd ..
-    python3 validate.py ${outname} > "./test-outputs/${outname}.out"
+    python3 validate.py ${outname} > "./test-outputs/${outname}.val"
 fi
 
 if $run_metrics; then
