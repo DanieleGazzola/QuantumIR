@@ -95,43 +95,42 @@ class QuantumIR():
 
             start_len = len(module.body.block._first_op.body.block.ops)
             
-            #print("\nPerforming Remove Unused Operations...")
             removeUnusedOp = RemoveUnusedOperations()
             PatternRewriteWalker(removeUnusedOp).rewrite_module(module)
             self.dce_gate_elim += removeUnusedOp.eliminations
             self.dce_init_elim += removeUnusedOp.init_eliminations
+            # free up memory
+            del removeUnusedOp
+
             # check if any unused operations were removed
             if start_len != len(module.body.block._first_op.body.block.ops): 
                 self.num_dce += 1
                 if print_output:
                     print("\n\nRemoved unused operations")
                     Printer().print_op(module)
-            #elif start_len == len(module.body.block._first_op.body.block.ops):   
-                #print("No unused operations to remove\n")
-
-            PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
-
+            
             clone_len = len(module.body.block._first_op.body.block.ops)
-            #print("\nPerforming Common Subexpression Elimination...")
             cse = CommonSubexpressionElimination()
             cse.apply(module)
             self.cse_samequbit += cse.same_qubit
             self.cse_gate_elim += cse.cse_eliminations
-            
+            # free up memory
+            del cse
+
             # check if any common subexpressions were eliminated
             if clone_len != len(module.body.block._first_op.body.block.ops):
                 self.num_cse += 1
                 if print_output: 
                     print("\n\nCommon subexpression elimination")
                     Printer().print_op(module)
-            #elif clone_len == len(module.body.block._first_op.body.block.ops):
-                #print("No common subexpressions to eliminate\n")
         
             clone_len = len(module.body.block._first_op.body.block.ops)
-            #print("\nPerforming Hermitian Gates Elimination...")
+
             hge = HermitianGatesElimination()
             hge.apply(module)
             self.hge_gate_elim += hge.hge_eliminations
+            # free up memory
+            del hge
 
             # check if any common subexpressions were eliminated
             if clone_len != len(module.body.block._first_op.body.block.ops): 
@@ -139,34 +138,30 @@ class QuantumIR():
                 if print_output:
                     print("\n\nHermitian elimination")
                     Printer().print_op(module)
-            #elif clone_len == len(module.body.block._first_op.body.block.ops):
-                #print("No Hermitian eliminations to be performed\n")
+
 
             clone_len = len(module.body.block._first_op.body.block.ops)
-            #print("\nPerforming Inplacing...")
             inPlacing = InPlacing()
             # apply_recusively = False in order to not apply it to new operation inserted by the pattern itself
             PatternRewriteWalker(inPlacing,walk_regions_first=False,apply_recursively=False).rewrite_module(module)
             self.inplacing_gate_elim += inPlacing.inplacing_gate_elim
             self.inplacing_init_elim += inPlacing.inplacing_init_elim
+            # free up memory
+            del inPlacing
+
             # check if any inplacing has been done
             if clone_len != len(module.body.block._first_op.body.block.ops):
                 self.num_inplacing += 1
                 if print_output:
                     print("\n\nInplacing")
                     Printer().print_op(module)
-            #elif clone_len == len(module.body.block._first_op.body.block.ops):
-                #print("No inplacing to be performed\n")
-            
+        
             # renumber qubits after all transformations
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
 
             # check if there were no changes in the last iteration
             if start_len == len(module.body.block._first_op.body.block.ops):
-                #if print_output: 
-                    #print("\nNo more transformations possible\n")
                 break
-
 
         self.module = module
         # Final IR

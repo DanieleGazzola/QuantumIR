@@ -12,23 +12,12 @@ from dialect.dialect import FuncOp, MeasureOp, InitOp
 
 # check if the qubit has uses in between the two operation we want to eliminate
 # if not we can safely delete the two operations as they commute
-def has_uses_between(from_op: Operation, to_op: Operation) -> bool:
+def has_uses_between(from_op: Operation, passedOperations: set) -> bool:
     
-    next_op = from_op.next_op
-
-    # check on every operation until the target operation
-    while not next_op is to_op:
-
-        # if the operation is an InitOp surely it will not use the existing qubit 
-        if not isinstance(next_op, InitOp):
-
-            # if we find the SSAValue is used in any way we don't delete
-            for operand in next_op.operands:
-                if operand._name == from_op.res._name:
-                    return True  
-                
-        next_op = next_op.next_op
-
+    uses = from_op.res.uses
+    for use in uses:
+        if use.operation in passedOperations:
+            return True
     return False
 
 
@@ -104,10 +93,12 @@ class HGEDriver:
     _rewriter: Rewriter
     _known_ops: KnownOps = KnownOps()
     hge_eliminations: int = 0
+    passedOperations: set
 
     def __init__(self):
         self._rewriter = Rewriter()
         self._known_ops = KnownOps()
+        self.passedOperations = set()
 
     # delete an operation
     def _commit_erasure(self, op: Operation):
@@ -146,14 +137,16 @@ class HGEDriver:
         opInfo = OperationInfo(op)
         # check if the operation is already known
         if existing := self._known_ops.get(opInfo):
-            # if the qubit is not used in between we can delete the operations
-            if not has_uses_between(existing, op):
-                self._replace_and_delete(op, existing)
-                self.hge_eliminations += 2
-                return
+            if existing.res == op.target: # the second must write the result of the first
+                # if the qubit is not used in between we can delete the operations
+                if not has_uses_between(existing, self.passedOperations):
+                    self._replace_and_delete(op, existing)
+                    self.hge_eliminations += 2
+                    return
         
         # if the operation is not known we add it to the known operations
         self._known_ops[opInfo] = op
+        self.passedOperations.add(op)
         return
 
     # simplify the block, it sweeps all the operations in the block

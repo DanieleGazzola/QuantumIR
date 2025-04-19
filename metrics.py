@@ -3,6 +3,10 @@ import backend.JSON_to_DataClasses as JSON_to_DataClasses
 
 from qiskit import QuantumCircuit
 
+import cProfile
+import pstats
+import re
+
 import sys
 import time
 import tracemalloc
@@ -145,11 +149,21 @@ tracemalloc.start()
 opttime_start = time.perf_counter()
 quantum_ir = QuantumIR()
 quantum_ir.run_dataclass()
-quantum_ir.run_generate_ir(print_output = True)
+quantum_ir.run_generate_ir(print_output = False)
 print("\nGenerating optimized quantum circuit with CCNOT decomposition")
-quantum_ir.run_transformations(print_output = True)
-quantum_ir.metrics_transformation(print_output = True)
-quantum_ir.run_transformations(print_output = True)
+# cProfile.run('quantum_ir.run_transformations(print_output = False)', 'restats')
+# p = pstats.Stats('restats')
+# p.strip_dirs().sort_stats('cumulative').print_stats(25)
+# p.print_callers(.5)
+# p.print_callees(.5)
+#p.strip_dirs().sort_stats('tottime').print_stats(10)
+quantum_ir.run_transformations(print_output = False)
+print("#############################################################################")
+quantum_ir.metrics_transformation(print_output = False)
+# cProfile.run('quantum_ir.run_transformations(print_output = False)', sort = 'tottime')
+# p = pstats.Stats('restats')
+# p.strip_dirs().sort_stats('cumulative').print_stats(25)
+quantum_ir.run_transformations(print_output = False)
 opttime_end = time.perf_counter()
 _ , opt_mempeak = tracemalloc.get_traced_memory()
 transformed_ir = quantum_ir
