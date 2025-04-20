@@ -34,7 +34,6 @@ class QuantumIR():
     # MLIR root
     module : ModuleOp
 
-
     # Number of times each transformation is executed and number of gates it erases
     num_cse : int = 0
     cse_gate_elim: int = 0
@@ -86,11 +85,21 @@ class QuantumIR():
             print("\nIR:\n")
             Printer().print_op(self.module)
 
-    def run_transformations(self, print_output = True):
+    def run_transformations(self, print_output = True, gateslist=[], qubitlist=[]):
         if print_output:
             print("\n\nTransformations:")
 
         module = self.module
+
+        initOp_num = len(module.body.block._args)
+        gate_num = 0
+        for op in module.body.block._first_op.body.block.ops:
+            if op.name == "quantum.init":
+                initOp_num +=1
+            elif op.name != "quantum.measure":
+                gate_num += 1
+        gateslist.append(gate_num)
+        qubitlist.append(initOp_num)
         while True:
 
             start_len = len(module.body.block._first_op.body.block.ops)
@@ -158,10 +167,21 @@ class QuantumIR():
         
             # renumber qubits after all transformations
             PatternRewriteWalker(QubitRenumber()).rewrite_module(module)
-
+            
+            initOp_num = len(module.body.block._args)
+            gate_num = 0
+            for op in module.body.block._first_op.body.block.ops:
+                if op.name == "quantum.init":
+                    initOp_num +=1
+                elif op.name != "quantum.measure":
+                    gate_num += 1
+            
             # check if there were no changes in the last iteration
             if start_len == len(module.body.block._first_op.body.block.ops):
                 break
+            else:
+                gateslist.append(gate_num)
+                qubitlist.append(initOp_num)
 
         self.module = module
         # Final IR
@@ -185,13 +205,22 @@ class QuantumIR():
 # @profile decorator to measure memory usage
 # @profile
 def main():
+    gateslist = []
+    qubitlist = []
+
+    ccnot_gateslist = []
+    ccnot_qubitlist = []
     try:
         quantum_ir = QuantumIR()
         quantum_ir.run_dataclass()
         quantum_ir.run_generate_ir()
-        quantum_ir.run_transformations()
+        quantum_ir.run_transformations(False,gateslist,qubitlist)
         quantum_ir.metrics_transformation()
-        quantum_ir.run_transformations()
+        quantum_ir.run_transformations(False,ccnot_gateslist,ccnot_qubitlist)
+        print("\n",gateslist)
+        print(ccnot_gateslist)
+        print("\n",qubitlist)
+        print(ccnot_qubitlist)
         
     except:
         print("Error in the execution of the program")

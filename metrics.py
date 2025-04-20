@@ -126,7 +126,10 @@ def metrics(circuit):
     }
 
 ######### MAIN #########
-
+opt_gateEvol = []
+opt_qubitEvol = []
+opt_ccnot_qubitEvol = []
+opt_ccnot_gateEvol = []
 
 # Generate basic IR, measure time and memory
 tracemalloc.start()
@@ -157,13 +160,13 @@ print("\nGenerating optimized quantum circuit with CCNOT decomposition")
 # p.print_callers(.5)
 # p.print_callees(.5)
 #p.strip_dirs().sort_stats('tottime').print_stats(10)
-quantum_ir.run_transformations(print_output = False)
+quantum_ir.run_transformations(print_output = False,gateslist = opt_gateEvol, qubitlist = opt_qubitEvol)
 print("#############################################################################")
 quantum_ir.metrics_transformation(print_output = False)
 # cProfile.run('quantum_ir.run_transformations(print_output = False)', sort = 'tottime')
 # p = pstats.Stats('restats')
 # p.strip_dirs().sort_stats('cumulative').print_stats(25)
-quantum_ir.run_transformations(print_output = False)
+quantum_ir.run_transformations(print_output = False,gateslist = opt_ccnot_qubitEvol, qubitlist = opt_ccnot_gateEvol)
 opttime_end = time.perf_counter()
 _ , opt_mempeak = tracemalloc.get_traced_memory()
 transformed_ir = quantum_ir
@@ -262,6 +265,13 @@ print("\nEliminations:",
     "\nInplacing Gate eliminations: ", transformed_ir.inplacing_gate_elim,
     "\nInplacing Init eliminations: ", transformed_ir.inplacing_init_elim,
     "\nHGE eliminations: ", transformed_ir.hge_gate_elim)
+
+print("\nElimination lists:",
+    "\nOpt Gate List: ", opt_gateEvol,
+    "\nOpt Qubit List: ", opt_qubitEvol,
+    "\nOpt after CCNOT Dec. Gate List: ", opt_ccnot_qubitEvol,
+    "\nOpt after CCNOT Dec. Qubit List: ", opt_ccnot_gateEvol)
+    
 
 print("\n################ PERFORMANCE ################")
 print(f"\nBasic circuit generation time: {basictime_end - basictime_start:.3f} seconds")
